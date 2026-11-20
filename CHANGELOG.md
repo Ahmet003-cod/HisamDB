@@ -2,6 +2,23 @@
 
 Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [0.4.0] - 2026-11-20 (Faz 2 — İleri İndeksleme, PQ/IVF-PQ, DiskIndex ve Query Optimizer)
+
+### Eklenenler
+- **Product Quantization (`ProductQuantizer`):** K-Means++ alt-uzay kod kitapları, vektörize `np.einsum` ADC arama tabloları, sütun-bitişik `(M, N)` önbellek dostu akümülasyon, bölünmeyen boyutlarda şeffaf sıfır-dolgu, birim-küre L2 kosinüs düzeltmesi ve CRC32 ikili serileştirme (`to_bytes`/`from_bytes`). 100K×128D'de **1.65 MB RAM (%96.7 tasarruf)**.
+- **IVF-PQ (`IVFPQIndex`, `index_type="ivf_pq"`):** Kaba IVF kümeleme + artık vektörler üzerinde Product Quantization. 100K×128D'de **2.48 MB RAM (%95 tasarruf)** ve aynı 8-bit `M=16` bütçesinde FAISS `IndexIVFPQ`'dan daha yüksek Recall@10 (`0.270` vs `0.258`).
+- **Out-of-Core Disk Tabanlı İndeks (`DiskIndex`, `index_type="disk"`) ve `DiskStreamingScanner`:**
+  - `DiskIndex`: Küme sırasına dizilmiş `.mvdbdisk` mmap dosyası; 100K×128D'de yalnızca **2.35 MB RAM (%95.3 tasarruf)** ile **1.23 ms (684 QPS)** ve **1.000 Recall@10**.
+  - `DiskStreamingScanner`: Sabit RAM bütçeli (4K blok) exact mmap akış taraması; 100K×128D'de yalnızca **0.76 MB RAM (%98.5 tasarruf)** ile **1.000 Recall@10**.
+- **CRC32 + Epoch Doğrulamalı Anında İndeks Kalıcılığı:** `HNSWIndex`, `IVFIndex`, `IVFPQIndex` ve `DiskIndex` artık `checkpoint()` ve `close()` anında atomik olarak diske kaydedilir ve açılışta yeniden inşa edilmeden yüklenir (**IVF-PQ 24.1x**, **HNSW 9.8x**, **DiskIndex 5.2x**, **IVF 3.7x** daha hızlı açılış). Bozuk/bayat indekslerde otomatik güvenli yeniden inşa yapılır.
+- **Maliyet Tabanlı Query Optimizer (`QueryOptimizer` & `collection.explain()`):**
+  - Filtre seçiciliğine göre otomatik `pre_filter_exact` (`s < %5` veya `M <= 2048`), sıfır-Python-set `np.searchsorted` tabanlı `hnsw_post_filter` (eksik sonuçta otomatik callback fallback), uyarlamalı `nprobe` artışı, `disk_stream` seçimi ve uzman kullanıcılar için manuel `strategy` / `filter_strategy` parametreleri.
+  - 100K×128D filtreli HNSW'de v0.3.0 callback'e göre **2.2x–7.7x**, v0.2.0'a göre %10 filtrede **123.8x hızlanma** (59.32 ms → **0.479 ms**, >2,000 QPS).
+
+### İyileştirilenler
+- `HNSWIndex.load_with_meta()` içindeki `hnswlib` çift başlatma uyarısı `_skip_init=True` ile temizlendi.
+- `StorageEngine` şeması `data_epoch` ve `index_params_json` sütunlarıyla geriye dönük uyumlu biçimde genişletildi; koleksiyon silinirken tüm yan indeks dosyaları (`.mvdbidx`, `.hnsw.bin`, `.mvdbdisk` vb.) otomatik temizlenir.
+
 ## [0.3.0] - 2026-11-20 (Faz 1 — Çekirdek Optimizasyon, Güvenlik ve Veri Bütünlüğü)
 
 ### Eklenenler

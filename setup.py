@@ -8,7 +8,7 @@ if os.path.exists("README.md"):
 
 setup(
     name="microvectordb",
-    version="0.3.0",
+    version="0.4.0",
     description="A high-performance, low-memory, persistent vector database for Python, RAG, and AI agents",
     long_description=long_description,
     long_description_content_type="text/markdown",

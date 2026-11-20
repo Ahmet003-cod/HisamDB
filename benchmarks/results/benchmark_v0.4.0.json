@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "microvectordb_version": "0.4.0",
+    "python": "3.11.9",
+    "os": "Windows-10-10.0.26300-SP0",
+    "cpu_logical_cores": 12,
+    "ram_total_gb": 15.73,
+    "numpy": "2.0.2",
+    "faiss": "1.13.2",
+    "hnswlib": true,
+    "timestamp": "2026-11-20 23:26:39"
+  },
+  "benchmarks": [
+    {
+      "category": "PQ/IVF-PQ",
+      "engine": "MicroVectorDB v0.4.0",
+      "name": "MVDB Flat PQ (M=16, 8-bit, keep_raw=False)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 8.057,
+      "p50_ms": 10.943,
+      "p95_ms": 15.539,
+      "qps": 86.8,
+      "recall_at_10": 0.054,
+      "ram_mb": 1.65
+    },
+    {
+      "category": "PQ/IVF-PQ",
+      "engine": "MicroVectorDB v0.4.0",
+      "name": "MVDB IVF-PQ (C=128, np=8, M=16, keep_raw=F)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 13.079,
+      "p50_ms": 3.446,
+      "p95_ms": 6.277,
+      "qps": 255.1,
+      "recall_at_10": 0.27,
+      "ram_mb": 2.48
+    },
+    {
+      "category": "Disk/MMap",
+      "engine": "MicroVectorDB v0.4.0",
+      "name": "MVDB DiskIndex (Partitioned MMap, C=128, np=8)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 2.791,
+      "p50_ms": 1.227,
+      "p95_ms": 2.586,
+      "qps": 684.1,
+      "recall_at_10": 1.0,
+      "ram_mb": 2.35
+    },
+    {
+      "category": "Disk/MMap",
+      "engine": "MicroVectorDB v0.4.0",
+      "name": "MVDB DiskStreamingScanner (Exact MMap, 4K blk)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 0.0,
+      "p50_ms": 11.51,
+      "p95_ms": 15.362,
+      "qps": 82.7,
+      "recall_at_10": 1.0,
+      "ram_mb": 0.76
+    },
+    {
+      "category": "FAISS-Ref",
+      "engine": "FAISS 1.13.2",
+      "name": "FAISS IndexPQ (M=16, 8-bit)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 3.302,
+      "p50_ms": 1.378,
+      "p95_ms": 1.853,
+      "qps": 722.5,
+      "recall_at_10": 0.054,
+      "ram_mb": 1.53
+    },
+    {
+      "category": "FAISS-Ref",
+      "engine": "FAISS 1.13.2",
+      "name": "FAISS IndexIVFPQ (nlist=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 4.297,
+      "p50_ms": 0.584,
+      "p95_ms": 0.763,
+      "qps": 1787.9,
+      "recall_at_10": 0.258,
+      "ram_mb": 2.29
+    }
+  ],
+  "reload": [
+    {
+      "index": "IVF-PQ (100K x 128D)",
+      "cold_build_s": 13.079,
+      "v04_disk_reload_ms": 542.0,
+      "loaded_from_disk": true,
+      "speedup": 24.1
+    },
+    {
+      "index": "DiskIndex (100K x 128D)",
+      "cold_build_s": 2.791,
+      "v04_disk_reload_ms": 532.8,
+      "loaded_from_disk": true,
+      "speedup": 5.2
+    },
+    {
+      "index": "IVF (100K x 128D)",
+      "cold_build_s": 2.858,
+      "v04_disk_reload_ms": 781.3,
+      "loaded_from_disk": true,
+      "speedup": 3.7
+    },
+    {
+      "index": "HNSW (100K x 128D, M=16, efC=128)",
+      "cold_build_s": 9.225,
+      "v04_disk_reload_ms": 940.6,
+      "loaded_from_disk": true,
+      "speedup": 9.8
+    }
+  ],
+  "optimizer": [
+    {
+      "selectivity": "2% (2K)",
+      "chosen_path": "flat_exact",
+      "v03_callback_p50_ms": 3.712,
+      "v04_optimizer_p50_ms": 0.705,
+      "speedup": 5.26
+    },
+    {
+      "selectivity": "10% (10K)",
+      "chosen_path": "hnsw_post_filter",
+      "v03_callback_p50_ms": 1.069,
+      "v04_optimizer_p50_ms": 0.479,
+      "speedup": 2.23
+    },
+    {
+      "selectivity": "30% (30K)",
+      "chosen_path": "hnsw_post_filter",
+      "v03_callback_p50_ms": 2.268,
+      "v04_optimizer_p50_ms": 0.346,
+      "speedup": 6.55
+    },
+    {
+      "selectivity": "60% (60K)",
+      "chosen_path": "hnsw_post_filter",
+      "v03_callback_p50_ms": 2.96,
+      "v04_optimizer_p50_ms": 0.384,
+      "speedup": 7.71
+    }
+  ]
+}

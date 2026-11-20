@@ -1,0 +1,7 @@
+category,engine,name,n_vectors,dim,metric,build_s,p50_ms,p95_ms,qps,recall_at_10,ram_mb
+PQ/IVF-PQ,MicroVectorDB v0.4.0,"MVDB Flat PQ (M=16, 8-bit, keep_raw=False)",100000,128,cosine,8.057,10.943,15.539,86.8,0.054,1.65
+PQ/IVF-PQ,MicroVectorDB v0.4.0,"MVDB IVF-PQ (C=128, np=8, M=16, keep_raw=F)",100000,128,cosine,13.079,3.446,6.277,255.1,0.27,2.48
+Disk/MMap,MicroVectorDB v0.4.0,"MVDB DiskIndex (Partitioned MMap, C=128, np=8)",100000,128,cosine,2.791,1.227,2.586,684.1,1.0,2.35
+Disk/MMap,MicroVectorDB v0.4.0,"MVDB DiskStreamingScanner (Exact MMap, 4K blk)",100000,128,cosine,0.0,11.51,15.362,82.7,1.0,0.76
+FAISS-Ref,FAISS 1.13.2,"FAISS IndexPQ (M=16, 8-bit)",100000,128,cosine,3.302,1.378,1.853,722.5,0.054,1.53
+FAISS-Ref,FAISS 1.13.2,"FAISS IndexIVFPQ (nlist=128, np=8, M=16)",100000,128,cosine,4.297,0.584,0.763,1787.9,0.258,2.29

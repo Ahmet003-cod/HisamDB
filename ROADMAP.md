@@ -6,7 +6,7 @@
 ---
 
 ## Faz 1 — Çekirdek Optimizasyon, Güvenlik ve Veri Bütünlüğü (`v0.3.0`)
-**Durum:** Aktif Geliştirme (Geriye dönük uyumlu)
+**Durum:** ✅ Tamamlandı (`52/52` test, `BENCHMARK_REPORT.md` doğrulandı)
 
 ### Hedefler
 1. **Güvenlik & Doğruluk Düzeltmeleri (P0):**
@@ -45,14 +45,16 @@
 ---
 
 ## Faz 2 — İleri İndeksleme, Kuantizasyon ve Sorgu Optimizasyonu (`v0.4.0`)
-- **HNSW İndeksi:** Tam kalıcılıklı, silme/güncelleme destekli ve filtre-farkında `HNSWIndex` (opsiyonel `hnswlib` + bağımlılıksız saf Python/NumPy küçük veri fallback değerlendirmesi).
-- **Product Quantization (PQ) & Residual Quantization (RQ):** ADC (Asymmetric Distance Computation) arama tabloları ile 8x–32x bellek sıkıştırma.
-- **Query Optimizer (Maliyet Tabanlı Planlayıcı):** Veri boyutu, filtre seçiciliği (metadata indeksinden $O(1)$ kardinalite tahmini), indeks tipi ve RAM bütçesine göre otomatik Flat / IVF / HNSW ve Pre-filter / Post-filter seçimi.
-- **Disk Tabanlı / Out-of-Core Arama:** `mmap` üzerinde bloklu akış taraması ve DiskANN/Vamana benzeri grafik yaklaşımının fizibilite ve prototip ölçümü.
+**Durum:** ✅ Tamamlandı (`63/63` test, `benchmarks/results/benchmark_v0.4.0.json` doğrulandı)
+- **HNSW, IVF, IVF-PQ & DiskIndex Disk Kalıcılığı:** CRC32 + epoch doğrulamalı atomik kaydetme/yükleme (IVF-PQ 24.1x, HNSW 9.8x, DiskIndex 5.2x, IVF 3.7x hızlı açılış) ve bozulma anında güvenli yeniden inşa.
+- **Product Quantization (PQ) & IVF-PQ:** Vektörize `np.einsum` ADC arama tabloları ve birim-küre L2 kosinüs düzeltmesi ile 20x–30x RAM sıkıştırma (FAISS `IndexIVFPQ` ile eşdeğer/yüksek Recall@10).
+- **Query Optimizer (`collection.explain()`):** Maliyet tabanlı otomatik Flat / IVF / IVF-PQ / HNSW / DiskIndex / DiskStream seçimi; sıfır-set `np.searchsorted` HNSW post-filter oversampling ile 100K filtreli sorguda **0.35–0.48 ms** (v0.3 callback'ten 2.2x–7.7x, v0.2'den **123.8x** hızlı).
+- **Out-of-Core Disk Tabanlı Arama (`DiskIndex` & `DiskStreamingScanner`):** 100K×128D'de **2.35 MB RAM (%95.3 tasarruf)** ile **1.23 ms (684 QPS, Recall@10=1.000)** ve sabit-RAM akış taramasında **0.76 MB RAM (%98.5 tasarruf)**.
 
 ---
 
 ## Faz 3 — Gelişmiş Arama (Sparse, Hybrid) ve RAG Optimizasyonu (`v0.5.0`)
+**Durum:** Sıradaki Aşama
 - **Sparse Vector & BM25 Motoru:** Ters indeksli anahtar kelime ve sparse embedding (`{token_id: weight}`) araması.
 - **Hybrid Search:** Reciprocal Rank Fusion (RRF), Min-Max / Z-Score skor normalizasyonu ve ayarlanabilir ağırlıklı füzyon ($\alpha \cdot \text{Dense} + \beta \cdot \text{Sparse}$).
 - **RAG İlkelleri:** Doküman/chunk yaşam döngüsü, Parent-Child retrieval, doküman gruplama, sonuç tekilleştirme (deduplication), bağlam penceresi birleştirme, harici reranker kanca arayüzü (CrossEncoder/Cohere/API bağımsız), çoklu vektör (multi-vector) ve multi-tenant koleksiyon izolasyonu.

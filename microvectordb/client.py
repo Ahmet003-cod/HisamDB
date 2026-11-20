@@ -46,6 +46,8 @@ class BaseClient:
                 quantization=meta.get("quantization", "none"),
                 storage_dtype=meta.get("storage_dtype", "float32"),
                 use_mmap=self._default_use_mmap,
+                index_params=meta.get("index_params"),
+                data_epoch=meta.get("data_epoch", 0),
             )
             self._collections[name] = coll
 
@@ -90,6 +92,8 @@ class BaseClient:
                 index_type=coll.index_type,
                 quantization=coll.quantization,
                 storage_dtype=coll.storage_dtype,
+                data_epoch=coll._data_epoch,
+                index_params=coll.index_params,
             )
             return coll
 

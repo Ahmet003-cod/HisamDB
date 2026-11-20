@@ -13,6 +13,11 @@ v0.3.0 İyileştirmeleri:
 6. Opsiyonel boolean filtre maskesi ile filtre-farkında küme araması.
 """
 
+import os
+import struct
+import threading
+import time
+import zlib
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 
@@ -23,7 +28,13 @@ from microvectordb.metrics.kernels import (
     top_k_indices,
     validate_metric,
 )
-from microvectordb.types import MetricType
+from microvectordb.types import DataCorruptionError, MetricType
+
+_IVF_MAGIC = b"MVDBIVF1"
+_IVF_HDR_FMT = "<8sHHHHIQQII"
+# magic(8), ver(2), metric_id(2), n_clusters(2), nprobe(2), dim(4), total_items(8), epoch(8), hdr_crc(4), body_crc(4)
+_IVF_METRIC_TO_ID = {"euclidean": 0, "cosine": 1, "dot_product": 2}
+_IVF_ID_TO_METRIC = {v: k for k, v in _IVF_METRIC_TO_ID.items()}
 
 
 class IVFIndex:
@@ -471,6 +482,171 @@ class IVFIndex:
             all_indices.append(idx)
             all_dists.append(dist)
         return all_indices, all_dists
+
+    def _compact_extras(self) -> None:
+        """Artımlı eklenmiş vektörleri bitişik bloklara birleştirir (disk kaydı öncesi)."""
+        if self._extra_count == 0 or not self._trained:
+            return
+        assert self._packed_vectors is not None and self._packed_ids is not None
+        assert self._cluster_starts is not None and self._cluster_ends is not None
+
+        c_cnt = self.n_clusters
+        new_vec_parts: List[np.ndarray] = []
+        new_id_parts: List[np.ndarray] = []
+        counts = np.zeros(c_cnt, dtype=np.int64)
+
+        for cid in range(c_cnt):
+            s = int(self._cluster_starts[cid])
+            e = int(self._cluster_ends[cid])
+            parts_v = []
+            parts_i = []
+            if e > s:
+                parts_v.append(self._packed_vectors[s:e])
+                parts_i.append(self._packed_ids[s:e])
+            if cid in self._extra_ids and self._extra_ids[cid]:
+                parts_v.append(np.asarray(self._extra_vecs[cid], dtype=np.float32))
+                parts_i.append(np.asarray(self._extra_ids[cid], dtype=np.int64))
+            if parts_v:
+                v_cat = parts_v[0] if len(parts_v) == 1 else np.concatenate(parts_v, axis=0)
+                i_cat = parts_i[0] if len(parts_i) == 1 else np.concatenate(parts_i, axis=0)
+                new_vec_parts.append(v_cat)
+                new_id_parts.append(i_cat)
+                counts[cid] = len(i_cat)
+
+        starts = np.zeros(c_cnt, dtype=np.int64)
+        if c_cnt > 1:
+            np.cumsum(counts[:-1], out=starts[1:])
+        ends = starts + counts
+
+        if new_vec_parts:
+            all_v = np.ascontiguousarray(np.concatenate(new_vec_parts, axis=0), dtype=np.float32)
+            all_i = np.ascontiguousarray(np.concatenate(new_id_parts, axis=0), dtype=np.int64)
+            sq, inv = compute_inv_norms(all_v)
+        else:
+            all_v = np.empty((0, self._dimension), dtype=np.float32)
+            all_i = np.empty(0, dtype=np.int64)
+            sq = np.empty(0, dtype=np.float32)
+            inv = np.empty(0, dtype=np.float32)
+
+        self._packed_vectors = all_v
+        self._packed_ids = all_i
+        self._packed_sq_norms = sq
+        self._packed_inv_norms = inv
+        self._cluster_starts = starts
+        self._cluster_ends = ends
+        self._total_items = int(all_i.size)
+        self._extra_ids.clear()
+        self._extra_vecs.clear()
+        self._extra_count = 0
+
+    def save(self, path: str, epoch: int = 0) -> None:
+        """IVF indeksini CRC32 + epoch korumalı olarak atomik biçimde diske kaydeder."""
+        if not self._trained or self.centroids is None:
+            raise RuntimeError("Eğitilmemiş IVFIndex kaydedilemez.")
+        self._compact_extras()
+        assert self._packed_vectors is not None and self._packed_ids is not None
+        assert self._packed_sq_norms is not None and self._packed_inv_norms is not None
+        assert self._cluster_starts is not None and self._cluster_ends is not None
+
+        body = b"".join([
+            np.ascontiguousarray(self.centroids, dtype=np.float32).tobytes(),
+            np.ascontiguousarray(self._cluster_starts, dtype=np.int64).tobytes(),
+            np.ascontiguousarray(self._cluster_ends, dtype=np.int64).tobytes(),
+            np.ascontiguousarray(self._packed_ids, dtype=np.int64).tobytes(),
+            np.ascontiguousarray(self._packed_sq_norms, dtype=np.float32).tobytes(),
+            np.ascontiguousarray(self._packed_inv_norms, dtype=np.float32).tobytes(),
+            np.ascontiguousarray(self._packed_vectors, dtype=np.float32).tobytes(),
+        ])
+        body_crc = zlib.crc32(body) & 0xFFFFFFFF
+        prefix = struct.pack(
+            "<8sHHHHIQQ",
+            _IVF_MAGIC,
+            1,
+            _IVF_METRIC_TO_ID[self.metric],
+            self.n_clusters,
+            self.nprobe,
+            self._dimension,
+            self._total_items,
+            int(epoch),
+        )
+        hdr_crc = zlib.crc32(prefix) & 0xFFFFFFFF
+        header = prefix + struct.pack("<II", hdr_crc, body_crc)
+
+        tmp = f"{path}.tmp.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}"
+        try:
+            with open(tmp, "wb") as f:
+                f.write(header)
+                f.write(body)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except Exception:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+            raise
+
+    @classmethod
+    def load(cls, path: str) -> Tuple["IVFIndex", int]:
+        """Diskteki IVF indeksini CRC32 doğrulayarak anında yükler. Dönüş: (IVFIndex, epoch)."""
+        with open(path, "rb") as f:
+            raw = f.read()
+        hdr_sz = struct.calcsize(_IVF_HDR_FMT)
+        if len(raw) < hdr_sz:
+            raise DataCorruptionError(f"IVF indeks başlığı eksik: '{path}'")
+
+        magic, ver, metric_id, n_clusters, nprobe, dim, total_items, epoch, hdr_crc, body_crc = (
+            struct.unpack(_IVF_HDR_FMT, raw[:hdr_sz])
+        )
+        if magic != _IVF_MAGIC or ver != 1 or metric_id not in _IVF_ID_TO_METRIC:
+            raise DataCorruptionError(f"Geçersiz IVF indeks başlığı: '{path}'")
+        if (zlib.crc32(raw[: hdr_sz - 8]) & 0xFFFFFFFF) != hdr_crc:
+            raise DataCorruptionError(f"IVF başlık CRC32 hatası: '{path}'")
+
+        body = raw[hdr_sz:]
+        if (zlib.crc32(body) & 0xFFFFFFFF) != body_crc:
+            raise DataCorruptionError(f"IVF gövde CRC32 hatası: '{path}'")
+
+        pos = 0
+        c_bytes = n_clusters * dim * 4
+        centroids = np.frombuffer(body[pos : pos + c_bytes], dtype=np.float32).reshape((n_clusters, dim)).copy()
+        pos += c_bytes
+        s_bytes = n_clusters * 8
+        starts = np.frombuffer(body[pos : pos + s_bytes], dtype=np.int64).copy()
+        pos += s_bytes
+        ends = np.frombuffer(body[pos : pos + s_bytes], dtype=np.int64).copy()
+        pos += s_bytes
+        id_bytes = total_items * 8
+        packed_ids = np.frombuffer(body[pos : pos + id_bytes], dtype=np.int64).copy()
+        pos += id_bytes
+        n_bytes = total_items * 4
+        sq_norms = np.frombuffer(body[pos : pos + n_bytes], dtype=np.float32).copy()
+        pos += n_bytes
+        inv_norms = np.frombuffer(body[pos : pos + n_bytes], dtype=np.float32).copy()
+        pos += n_bytes
+        v_bytes = total_items * dim * 4
+        packed_vecs = np.frombuffer(body[pos : pos + v_bytes], dtype=np.float32).reshape((total_items, dim)).copy()
+
+        idx = cls(n_clusters=n_clusters, nprobe=nprobe, metric=_IVF_ID_TO_METRIC[metric_id])  # type: ignore[arg-type]
+        idx._dimension = dim
+        idx._total_items = int(total_items)
+        idx.centroids = centroids
+        idx._centroid_sq_norms = compute_sq_norms(centroids)
+        idx._cluster_starts = starts
+        idx._cluster_ends = ends
+        idx._packed_ids = packed_ids
+        idx._packed_sq_norms = sq_norms
+        idx._packed_inv_norms = inv_norms
+        idx._packed_vectors = packed_vecs
+        idx.inverted_lists = {
+            cid: packed_ids[int(starts[cid]) : int(ends[cid])].tolist()
+            for cid in range(n_clusters)
+            if ends[cid] > starts[cid]
+        }
+        idx._trained = True
+        return idx, int(epoch)
 
     def __repr__(self) -> str:
         status = "trained" if self._trained else "untrained"

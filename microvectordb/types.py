@@ -12,8 +12,8 @@ import numpy as np
 MetricType = Literal["cosine", "dot_product", "euclidean"]
 
 # Desteklenen indeks, kuantizasyon ve depolama tipleri
-IndexType = Literal["flat", "ivf", "hnsw", "auto"]
-QuantizationType = Literal["none", "float16", "int8", "binary"]
+IndexType = Literal["flat", "ivf", "ivf_pq", "hnsw", "disk", "auto"]
+QuantizationType = Literal["none", "float16", "int8", "binary", "pq"]
 StorageDType = Literal["float32", "float16"]
 
 # Vektör tipleri (list of floats veya numpy array)
@@ -64,6 +64,39 @@ class SearchResultItem:
             "distance": self.distance,
             "document": self.document,
             "metadata": self.metadata,
+        }
+
+
+@dataclass
+class QueryPlan:
+    """
+    Query Optimizer tarafından üretilen şeffaf yürütme planı (`collection.explain()`).
+    """
+    execution_path: str
+    filter_strategy: str
+    total_vectors: int
+    estimated_candidates: int
+    selectivity: float
+    k_requested: int
+    adaptive_ef_search: Optional[int] = None
+    adaptive_nprobe: Optional[int] = None
+    oversample_k: Optional[int] = None
+    estimated_scan_ops: int = 0
+    reason: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "execution_path": self.execution_path,
+            "filter_strategy": self.filter_strategy,
+            "total_vectors": self.total_vectors,
+            "estimated_candidates": self.estimated_candidates,
+            "selectivity": round(self.selectivity, 6),
+            "k_requested": self.k_requested,
+            "adaptive_ef_search": self.adaptive_ef_search,
+            "adaptive_nprobe": self.adaptive_nprobe,
+            "oversample_k": self.oversample_k,
+            "estimated_scan_ops": self.estimated_scan_ops,
+            "reason": self.reason,
         }
 
 

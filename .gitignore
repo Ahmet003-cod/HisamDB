@@ -47,4 +47,9 @@ htmlcov/
 *.sqlite3-shm
 *.npy
 *.mvdbvec
+*.mvdbidx
+*.mvdbdisk
+*.disk.meta
+*.hnsw.bin
+*.hnsw.meta.json
 *.tmp.*

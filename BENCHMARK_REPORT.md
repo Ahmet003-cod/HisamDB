@@ -1,8 +1,10 @@
-# MicroVectorDB v0.3.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
+# MicroVectorDB v0.4.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
 
 **Ölçüm Tarihi:** 2026-11-20  
-**Ham Sonuç Dosyaları:** [`benchmarks/results/benchmark_v0.3.0.json`](benchmarks/results/benchmark_v0.3.0.json) · [`benchmarks/results/benchmark_v0.3.0.csv`](benchmarks/results/benchmark_v0.3.0.csv)  
-**Tekrar Çalıştırma Komutu:** `python benchmarks/run_benchmarks.py`
+**Ham Sonuç Dosyaları:**  
+- Faz 1 (`v0.3.0`): [`benchmarks/results/benchmark_v0.3.0.json`](benchmarks/results/benchmark_v0.3.0.json) · [`benchmarks/results/benchmark_v0.3.0.csv`](benchmarks/results/benchmark_v0.3.0.csv)  
+- Faz 2 (`v0.4.0`): [`benchmarks/results/benchmark_v0.4.0.json`](benchmarks/results/benchmark_v0.4.0.json) · [`benchmarks/results/benchmark_v0.4.0.csv`](benchmarks/results/benchmark_v0.4.0.csv)  
+**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py` ve `python benchmarks/run_benchmarks_v04.py`
 
 ---
 
@@ -89,3 +91,46 @@ Aynı Gaussian veri kümeleri (`seed=42`), aynı boyutlar ve aynı sorgu adedi �
 - **Disk Tüketimi:** `.mvdbvec` = `4.88 MB` (64-byte header + saf float32), SQLite = `1.97 MB` (WAL dahil).
 - **Yeniden Yükleme (Reload):** RAM modu = `149.0 ms`, `use_mmap=True` = `128.0 ms` (vektör RAM = yalnızca `0.076 MB`, yani **%98.4 RAM tasarrufu**).
 - **Tekil Silme (Sıkıştırmalı):** `181.9 ms` (tam atomik `.mvdbvec` + CRC32 + SQLite yeniden indeksleme; Faz 4'te tombstone + arka plan compaction ile <1 ms hedeflenmektedir).
+
+---
+
+## 6. Faz 2 (`v0.4.0`): PQ, IVF-PQ, DiskIndex, Anında İndeks Yükleme ve Query Optimizer
+
+### 6.1. Product Quantization (PQ), IVF-PQ ve Out-of-Core DiskIndex vs FAISS (100K × 128D)
+
+Aynı 64-konulu kümelemeli 100K × 128D veri seti (100 sorgu, Top-10, Kosinüs metriği, Exact ground truth):
+
+| Motor & Yapılandırma | Tip | Build (s) | P50 (ms) | P95 (ms) | QPS | Recall@10 | RAM (MB) | RAM Tasarrufu |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| **MVDB `DiskIndex` (Partitioned MMap, `C=128, np=8`)** | Out-of-Core MMap | 2.79 | **1.227** | 2.586 | **684.1** | **1.000** | **2.35** | **%95.3 (21x)** |
+| **MVDB `DiskStreamingScanner` (Exact MMap, 4K blk)** | Out-of-Core Exact | 0.00 | 11.510 | 15.362 | 82.7 | **1.000** | **0.76** | **%98.5 (65x)** |
+| **MVDB `IVF-PQ` (`C=128, np=8, M=16`, `keep_raw=F`)** | Saf NumPy ANN+PQ | 13.08 | 3.446 | 6.277 | 255.1 | **0.270** | **2.48** | **%95.0 (20x)** |
+| **FAISS `IndexIVFPQ` (`nlist=128, np=8, M=16`)** | C++ ANN+PQ | 4.30 | 0.584 | 0.763 | 1,787.9 | 0.258 | 2.29 | %95.3 |
+| **MVDB Flat `PQ` (`M=16, 8-bit`, `keep_raw=F`)** | Saf NumPy PQ | 8.06 | 10.943 | 15.539 | 86.8 | 0.054 | **1.65** | **%96.7 (30x)** |
+| **FAISS `IndexPQ` (`M=16, 8-bit`)** | C++ PQ | 3.30 | 1.378 | 1.853 | 722.5 | 0.054 | 1.53 | %96.9 |
+
+> **Bilimsel Bulgular:**
+> - **`DiskIndex` (Bölümlenmiş MMap) en çarpıcı sonucu verdi:** Yalnızca **2.35 MB RAM** (%95.3 RAM tasarrufu!) kullanarak **1.227 ms (684.1 QPS)** ve **1.000 Recall@10** ile RAM-içi Flat Float32'den (5.49 ms) ve FAISS `IndexFlatIP`'den (5.42 ms) **4.4x daha hızlı** çalışmaktadır.
+> - **`IVF-PQ` doğrulukta FAISS'i geçti:** Aynı 8-bit `M=16` (16 byte/vektör) bütçesinde MicroVectorDB IVF-PQ, K-Means++ ve birim-küre L2 artık ADC sayesinde **Recall@10 = 0.270** elde ederek FAISS `IndexIVFPQ`'yu (`0.258`) geride bıraktı. (Saf Python/NumPy küme döngüsü C++ SIMD ADC'ye göre ~5.9x daha yavaştır; yüksek recall gereken senaryolarda `DiskIndex` veya `M=32` / float32 rescore önerilir.)
+
+### 6.2. Anında İndeks Diskten Yükleme (v0.3.0 Soğuk İnşa vs v0.4.0 CRC32+Epoch Disk Yükleme, 100K × 128D)
+
+| İndeks Tipi | v0.3.0 Soğuk Yeniden İnşa | v0.4.0 Diskten Açılış (Toplam DB) | Hızlanma | `index_loaded_from_disk` |
+|---|---:|---:|---:|:---:|
+| **IVF-PQ (`C=128, M=16`)** | 13.08 s | **542.0 ms** | **24.1x** | ✅ `True` |
+| **HNSW (`M=16, efC=128`)** | 9.22 s | **940.6 ms** | **9.8x** | ✅ `True` |
+| **DiskIndex (`C=128`, MMap)** | 2.79 s | **532.8 ms** | **5.2x** | ✅ `True` |
+| **IVF (`C=128`)** | 2.86 s | **781.3 ms** | **3.7x** | ✅ `True` |
+
+*(Not: Toplam açılış süresinin ~450 ms'si 100K SQLite metadata satırının Python sözlüklerine okunmasından gelir; ikili indeks dosyalarının kendisi ~50–150 ms içinde yüklenmektedir.)*
+
+### 6.3. Maliyet Tabanlı Query Optimizer: Filtreli HNSW (100K × 128D)
+
+v0.3.0'daki graf-içi Python callback (`filter_fn`) ile v0.4.0'daki maliyet tabanlı `QueryOptimizer` (`pre_filter_exact` ve sıfır-set `np.searchsorted` tabanlı `hnsw_post_filter`) karşılaştırması:
+
+| Filtre Seçiciliği | Optimizer Seçimi (`explain()`) | v0.3.0 Callback P50 (ms) | v0.4.0 Optimizer P50 (ms) | Hızlanma (v0.3 → v0.4) | Hızlanma (v0.2 → v0.4) |
+|---|---|---:|---:|---:|---:|
+| **%2 (2.000 aday)** | `flat_exact` (`pre_filter_exact`) | 3.712 | **0.705** | **5.26x** | — |
+| **%10 (10.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 1.069 | **0.479** (>2,000 QPS) | **2.23x** | **123.8x** *(59.32 ms → 0.48 ms!)* |
+| **%30 (30.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 2.268 | **0.346** (~2,890 QPS) | **6.55x** | — |
+| **%60 (60.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 2.960 | **0.384** (~2,600 QPS) | **7.71x** | — |

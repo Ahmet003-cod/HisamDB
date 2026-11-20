@@ -131,11 +131,13 @@ class StorageEngine:
                     storage_dtype TEXT DEFAULT 'float32',
                     table_name TEXT,
                     vector_file TEXT,
-                    format_version INTEGER DEFAULT 2
+                    format_version INTEGER DEFAULT 2,
+                    data_epoch INTEGER DEFAULT 0,
+                    index_params_json TEXT
                 );
                 """
             )
-            # v0.2.0 veritabanından yükseltme: eksik sütunları güvenle ekle
+            # v0.2.0 / v0.3.0 veritabanından yükseltme: eksik sütunları güvenle ekle
             cur = self._conn.execute("PRAGMA table_info(collections);")
             existing_cols = {row["name"] for row in cur.fetchall()}
             migrations = [
@@ -145,6 +147,8 @@ class StorageEngine:
                 ("table_name", "TEXT"),
                 ("vector_file", "TEXT"),
                 ("format_version", "INTEGER DEFAULT 1"),
+                ("data_epoch", "INTEGER DEFAULT 0"),
+                ("index_params_json", "TEXT"),
             ]
             for col_name, col_def in migrations:
                 if col_name not in existing_cols:
@@ -209,6 +213,17 @@ class StorageEngine:
         self._vec_file_map[coll_name] = fname
         return self._safe_persist_path(fname)
 
+    def get_index_file_path(self, coll_name: str, suffix: str) -> Optional[str]:
+        """
+        Koleksiyonun disk indeks dosyası için güvenli (path-traversal korumalı) yol döndürür.
+        Örn. suffix='.ivf.mvdbidx', '.ivfpq.mvdbidx', '.hnsw.bin', '.hnsw.meta.json', '.mvdbdisk', '.disk.meta'
+        """
+        if not self.is_persistent:
+            return None
+        validate_collection_name(coll_name)
+        fname = f"{_collection_slug(coll_name)}{suffix}"
+        return self._safe_persist_path(fname)
+
     def _get_legacy_npy_path(self, coll_name: str) -> Optional[str]:
         """v0.2.0 `{coll_name}_vectors.npy` dosyasını güvenli biçimde kontrol eder."""
         if not self.is_persistent or not _is_safe_single_filename(coll_name):
@@ -249,8 +264,11 @@ class StorageEngine:
         index_type: str = "flat",
         quantization: str = "none",
         storage_dtype: str = "float32",
+        data_epoch: int = 0,
+        index_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         validate_collection_name(name)
+        params_json = json.dumps(index_params) if index_params else None
         with self._lock:
             if not self.is_persistent:
                 self._mem_collections[name] = {
@@ -261,6 +279,8 @@ class StorageEngine:
                     "index_type": index_type,
                     "quantization": quantization,
                     "storage_dtype": storage_dtype,
+                    "data_epoch": int(data_epoch),
+                    "index_params": dict(index_params or {}),
                 }
                 return
 
@@ -274,9 +294,10 @@ class StorageEngine:
                     INSERT INTO collections (
                         name, dimension, metric, created_at,
                         index_type, quantization, storage_dtype,
-                        table_name, vector_file, format_version
+                        table_name, vector_file, format_version,
+                        data_epoch, index_params_json
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?)
                     ON CONFLICT(name) DO UPDATE SET
                         dimension=excluded.dimension,
                         metric=excluded.metric,
@@ -285,7 +306,9 @@ class StorageEngine:
                         storage_dtype=excluded.storage_dtype,
                         table_name=COALESCE(collections.table_name, excluded.table_name),
                         vector_file=COALESCE(collections.vector_file, excluded.vector_file),
-                        format_version=2;
+                        format_version=2,
+                        data_epoch=excluded.data_epoch,
+                        index_params_json=excluded.index_params_json;
                     """,
                     (
                         name,
@@ -297,7 +320,21 @@ class StorageEngine:
                         storage_dtype,
                         table,
                         vec_fname,
+                        int(data_epoch),
+                        params_json,
                     ),
+                )
+
+    def update_collection_epoch(self, name: str, data_epoch: int) -> None:
+        """Koleksiyonun veri sürüm sayacını (epoch) günceller."""
+        if not self.is_persistent:
+            return
+        with self._lock:
+            assert self._conn is not None
+            with self._conn:
+                self._conn.execute(
+                    "UPDATE collections SET data_epoch = ? WHERE name = ?;",
+                    (int(data_epoch), name),
                 )
 
     def load_collections_meta(self) -> List[Dict[str, Any]]:
@@ -310,7 +347,8 @@ class StorageEngine:
                 """
                 SELECT name, dimension, metric, created_at,
                        index_type, quantization, storage_dtype,
-                       table_name, vector_file, format_version
+                       table_name, vector_file, format_version,
+                       data_epoch, index_params_json
                 FROM collections;
                 """
             )
@@ -320,6 +358,12 @@ class StorageEngine:
                 d["index_type"] = d.get("index_type") or "flat"
                 d["quantization"] = d.get("quantization") or "none"
                 d["storage_dtype"] = d.get("storage_dtype") or "float32"
+                d["data_epoch"] = int(d.get("data_epoch") or 0)
+                raw_p = d.get("index_params_json")
+                try:
+                    d["index_params"] = json.loads(raw_p) if raw_p else {}
+                except Exception:
+                    d["index_params"] = {}
                 if d.get("table_name"):
                     self._table_map[d["name"]] = d["table_name"]
                 if d.get("vector_file"):
@@ -339,6 +383,17 @@ class StorageEngine:
             table = self._get_collection_table_name(name)
             vec_path = self._get_vector_file_path(name)
             legacy_npy = self._get_legacy_npy_path(name)
+            index_paths = [
+                self.get_index_file_path(name, suffix)
+                for suffix in (
+                    ".ivf.mvdbidx",
+                    ".ivfpq.mvdbidx",
+                    ".hnsw.bin",
+                    ".hnsw.meta.json",
+                    ".mvdbdisk",
+                    ".disk.meta",
+                )
+            ]
 
             with self._conn:
                 self._conn.execute("DELETE FROM collections WHERE name = ?;", (name,))
@@ -347,7 +402,7 @@ class StorageEngine:
             self._table_map.pop(name, None)
             self._vec_file_map.pop(name, None)
 
-            for fpath in (vec_path, legacy_npy):
+            for fpath in [vec_path, legacy_npy, *index_paths]:
                 if fpath and os.path.exists(fpath):
                     try:
                         os.remove(fpath)
