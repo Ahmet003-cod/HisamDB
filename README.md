@@ -1,223 +1,200 @@
-# microvectordb 🚀
+# MicroVectorDB 🚀
 
-[![PyPI version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://pypi.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
-[![Dependencies: NumPy](https://img.shields.io/badge/dependencies-NumPy-blueviolet.svg)](https://numpy.org/)
+[![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](requirements.txt)
 
-**microvectordb**, harici ağır ve hantal bağımlılıklara ihtiyaç duymadan çalışan, **ChromaDB ve FAISS benzeri** temiz bir API sunan, son derece hızlı, hafif ve kalıcı (persistent) bir Python Vektör Veritabanıdır.
+**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, güvenilir kalıcılığa sahip, yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
 
----
-
-## 🎯 Neden microvectordb?
-
-Yapay zeka, RAG (Retrieval-Augmented Generation) veya semantik arama projelerinde çoğu geliştirici iki zorlukla karşılaşır:
-1. **ChromaDB:** Çok yeteneklidir ancak yüzlerce megabaytlık bağımlılık (ONNX Runtime, Pydantic vb.) indirir, bazen Windows veya hafif ortamlarda kurulum/derleme hataları verir.
-2. **FAISS:** Facebook'un geliştirdiği harika bir hız kütüphanesidir; ancak **bir veritabanı değildir**. Doküman saklayamaz, metadata filtreleyemez (`where={"kategori": "ai"}`) ve C++ derleyicisi gerektirir.
-
-**microvectordb** tam bu noktada devreye girer:
-> **ChromaDB'nin kullanım kolaylığı ve zengin veritabanı yeteneklerini, FAISS'in hafiflik ve indeksleme felsefesiyle birleştirir; üstelik sadece `numpy` kullanarak!**
+> **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
 ---
 
-## 🥊 Karşılaştırma: microvectordb vs ChromaDB vs FAISS
+## ✨ Neler Sunar? (v0.3.0 — Doğrulanmış Özellikler)
 
-| Kriter | 🚀 microvectordb (v0.2.0) | 🔵 ChromaDB | 🟣 FAISS |
-| :--- | :---: | :---: | :---: |
-| **Bağımlılık Ağırlığı** | 🟢 **Sadece `numpy`** (~1 MB) | 🟡 10+ kütüphane (~300-500 MB) | 🔴 C++ derleyicisi / Conda zorunlu |
-| **Kurulum Hızı** | ⚡ **2 saniye** (`pip install .`) | ⏳ 1-3 dakika | ⚠️ Platforma göre zor |
-| **Kullanım Amacı** | Tam Vektör Veritabanı | Tam Vektör Veritabanı | Sadece Vektör Arama Kütüphanesi |
-| **Metadata Filtreleme** | ✅ Zengin (`$eq`, `$in`, `$gte` vb.) | ✅ Zengin | ❌ **Yok** |
-| **Doküman Saklama** | ✅ Dahili (SQLite destekli) | ✅ Dahili | ❌ **Yok** |
-| **Disk Kalıcılığı** | ✅ Dahili (`.npy` + SQLite) | ✅ Dahili | ❌ Manuel indeks kaydetme |
-| **Arama Algoritmaları** | ✅ **Exact (Flat) + IVF Kümeleme** | HNSW (Approximate) | Flat, IVF, HNSW, PQ |
-| **Bellek Sıkıştırma** | ✅ **Skalar Kuantizasyon (int8)** | ❌ Yok | ✅ Var |
-| **Büyük Veri Desteği** | ✅ Memory-Mapped (`use_mmap=True`)| ❌ (RAM tüketir) | ✅ Var |
-| **Cross-Platform** | ✅ Windows/Mac/Linux/Raspberry Pi | ⚠️ Bazen Windows'ta derleme hatası | ⚠️ Derleme/ortam bağımlı |
-| **Öğrenme Eğrisi** | ⭐ Sıfır (ChromaDB API uyumlu) | ⭐ Kolay | ⚠️ Karmaşık |
+- **Sıfır Ağır Çekirdek Bağımlılığı:** Yalnızca `numpy>=1.20` (NumPy 1.x ve 2.x tam uyumlu). İsteğe bağlı `hnswlib` ile graf tabanlı HNSW desteği (`pip install ".[hnsw]"`).
+- **Yüksek Performanslı Arama ve İndeks Motoru:**
+  - **Optimize Flat (Exact):** Kosinüs için `(N,)` `inv_norms` (%50 daha az RAM), Öklid için önbellekli `sq_norms` (~15x hızlanma) ve OpenBLAS SGEMM/SGEMV.
+  - **Optimize `IVFIndex` (Saf NumPy):** K-Means++, bitişik küme blokları ve tüm metrikler (`cosine`, `dot_product`, `euclidean`).
+  - **`HNSWIndex` (Opsiyonel `hnswlib`):** 100K×128D'de **3,463 QPS (P50 = 0.278 ms, Recall@10 = 0.975)**.
+  - **Otomatik İndeks Modu (`index_type="auto"`):** Küçük veride exact Flat, büyük veride otomatik HNSW/IVF.
+- **Entegre Kuantizasyon & Düşük Bellek Modları:**
+  - `quantization="float16"` (~2x RAM tasarrufu, Recall@10 ≈ 0.999)
+  - `quantization="int8"` (Taşmasız ölçek-ağırlıklı `ScalarQuantizer`, `keep_raw_vectors=False` ile ~4x RAM tasarrufu, Recall@10 ≈ 0.965–0.980)
+  - `quantization="binary"` (1-bit paketlenmiş Hamming + `uint64` SIMD `bitwise_count`, 32x sıkıştırma, isteğe bağlı float32 yeniden skorlama)
+  - Gerçek `use_mmap=True` bellek-eşlemeli disk okuma (**%98+ vektör RAM tasarrufu**).
+- **Ters İndeksli Gelişmiş Metadata Filtreleme:**
+  - `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`, `$contains`, `$and`, `$or`, `$not` ve iç içe (`"author.country"`) filtreler.
+  - 100K vektörde %10 seçicilikli filtreli sorgu: **2.47 ms (383.7 QPS)** — v0.2.0'a göre **24x daha hızlı**.
+- **Güvenilir Depolama & Eşzamanlılık:**
+  - Sürümlü 64-byte hizalı `.mvdbvec` binary formatı, CRC32 doğrulama, atomik yazma (`fsync` + `os.replace`), $O(M)$ artımlı ekleme, çökme kurtarma, disk hatasında bellek geri alması (rollback).
+  - SQLite WAL modu, path-traversal koruması, SHA-256 çakışmasız tablo adlandırması, v0.2.0 `.npy` otomatik göçü.
+  - Yazıcı-öncelikli `RWLock` ile çok iş parçacıklı güvenli eşzamanlı okuma/yazma.
+- **Geliştirici Dostu & Geriye Dönük Uyumlu API:**
+  - Yeni `MicroVectorDB` / `collection.search()` / `score_threshold` / `stats()` / `checkpoint()` + tüm v0.2.0 `PersistentClient` / `EphemeralClient` / `collection.query()` imzaları %100 korunur.
 
 ---
 
-## ✨ Temel Özellikler
+## 📊 Doğrulanmış Performans Sonuçları (v0.3.0)
 
-- **Sıfır Hantal Bağımlılık:** Sadece `numpy` gerektirir. Derleyici (C/C++) zorunluluğu yoktur, her sistemde kutudan çıktığı gibi çalışır.
-- **Kalıcı (Persistent) & Bellek İçi (In-Memory) Mod:**
-  - `PersistentClient(path="./my_db")`: Verileri diske (`.npy` + SQLite) yazar, oturumlar arasında korur.
-  - `EphemeralClient()`: Testler ve geçici oturumlar için tamamen RAM'de çalışır.
-- **Yüksek Hızlı Arama Optimizasyonları (v0.2.0):**
-  - **`argpartition` Top-K:** Mesafeleri $O(N \log N)$ yerine $O(N)$ sürede kısmi sıralar (3-10x sıralama hızı).
-  - **Normalizasyon Cache:** Kosinüs benzerliğinde tekrar eden sorgularda %30-40 hız artışı.
-  - **`IVFIndex` (Inverted File Index):** 100K+ vektörlük büyük veri setlerinde K-Means kümelemesi ile **10-50x hızlanma**.
-  - **`ScalarQuantizer`:** Vektörleri float32'den int8'e sıkıştırarak **%75 bellek tasarrufu** (4x az RAM).
-  - **Memory-Mapped Arrays:** RAM'den büyük dev veri setlerini diskten doğrudan arayabilme.
-- **Zengin Benzerlik Metrikleri:** `cosine`, `dot_product`, `euclidean`.
-- **Güçlü Metadata Filtreleme (`where`):** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`.
-- **ChromaDB Uyumlu API:** `add()`, `upsert()`, `query()`, `get()`, `delete()`, `count()`.
+*Ölçüm ortamı: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS 0.3.27), FAISS 1.13.2. Tüm ham veriler ve metodoloji için [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) dosyasına bakın.*
+
+### v0.2.0 → v0.3.0 İyileştirme Özeti
+
+| Senaryo | v0.2.0 | v0.3.0 | İyileşme |
+|---|---:|---:|---:|
+| **100K×128D Filtreli Kosinüs (`eq` %10)** | 59.32 ms (15.9 QPS) | **2.47 ms (383.7 QPS)** | **24.0x hızlı** |
+| **50K×768D Flat Öklid (P50)** | 116.30 ms (8.6 QPS) | **7.99 ms (110.8 QPS)** | **14.6x hızlı** |
+| **50K×768D Flat Kosinüs RAM** | +297.4 MB | **146.9 MB** | **%50.6 az RAM** |
+| **100K×128D `ScalarQuantizer` (Recall@10 / P50)** | 0.630 / 35.08 ms | **0.980 / 16.89 ms** | **+35 puan Recall & 2.1x hızlı** |
+| **100K×128D `IVFIndex` (Gaussian P50)** | 2.10 ms (429.8 QPS) | **0.42 ms (1,881.8 QPS)** | **5.0x hızlı** |
+| **10K×128D Artımlı Kalıcı Yazma (20×500)** | 1.95 s (5,134 v/s) | **0.64 s (15,628 v/s)** | **3.0x hızlı** |
+| **10K×128D Tek Toplu Ekleme (`04_benchmark`)** | 244,639 v/s | **1,110,838 v/s** | **4.5x hızlı** |
+
+### 100K × 128D Kümelemeli Veri: MicroVectorDB v0.3.0 vs FAISS 1.13.2
+
+| Sistem & İndeks | P50 (ms) | QPS | Recall@10 | Vektör RAM |
+|---|---:|---:|---:|---:|
+| MicroVectorDB Flat Float32 | 5.49 | 157.6 | 1.000 | 49.6 MB |
+| FAISS `IndexFlatIP` | 5.42 | 175.1 | 1.000 | 48.8 MB |
+| MicroVectorDB IVF (`C=128, np=8`, saf NumPy) | **0.76** | **1,117.4** | **1.000** | 49.6 MB |
+| MicroVectorDB HNSW (`M=16, efS=64`) | **0.28** | **3,463.3** | **0.975** | 49.6 MB |
+| MicroVectorDB HNSW (`M=16, efS=128`) | **0.41** | **2,377.3** | **0.995** | 49.6 MB |
+| FAISS `IndexHNSWFlat` (`M=16, efS=64`) | 0.20 | 4,823.4 | 0.978 | 48.8 MB |
 
 ---
 
 ## 📦 Kurulum
 
-Projeyi sisteminize veya sanal ortamınıza (venv) kurmak için:
-
 ```bash
-# Doğrudan kurulum:
+# Temel kurulum (yalnızca numpy):
 pip install .
 
-# Geliştirici (düzenlenebilir) modda kurulum:
-pip install -e .
+# Opsiyonel HNSW desteği ile:
+pip install ".[hnsw]"
+
+# Geliştirme ve benchmark araçları ile:
+pip install -e ".[hnsw,dev,bench]"
 ```
 
 ---
 
-## ⚡ Hızlı Başlangıç (Quickstart)
+## ⚡ Hızlı Başlangıç
+
+### Yeni Birleşik API (`MicroVectorDB` + `search()`)
+
+```python
+from microvectordb import MicroVectorDB
+
+with MicroVectorDB("./database") as db:
+    collection = db.get_or_create_collection(
+        name="knowledge_base",
+        dimension=4,
+        metric="cosine",
+        index_type="flat",     # "flat", "ivf", "hnsw", "auto"
+        quantization="none",   # "none", "float16", "int8", "binary"
+    )
+
+    collection.add(
+        ids=["1", "2", "3"],
+        vectors=[
+            [0.95, 0.10, 0.05, 0.02],
+            [0.10, 0.92, 0.20, 0.05],
+            [0.85, 0.15, 0.10, 0.01],
+        ],
+        documents=["RAG mimarisi", "Veritabanı güvenliği", "AI Agent hafızası"],
+        metadata=[
+            {"category": "AI", "year": 2025, "tags": ["rag", "llm"]},
+            {"category": "Security", "year": 2024, "tags": ["auth"]},
+            {"category": "AI", "year": 2026, "tags": ["agent", "rag"]},
+        ],
+    )
+
+    results = collection.search(
+        query_vector=[0.90, 0.12, 0.06, 0.02],
+        limit=5,
+        filter={
+            "$and": [
+                {"category": "AI"},
+                {"year": {"$gte": 2025}},
+                {"tags": {"$contains": "rag"}},
+            ]
+        },
+        score_threshold=0.70,
+    )
+
+    for item in results:
+        print(item.id, round(item.score, 4), item.document)
+```
+
+### Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
 
 ```python
 import microvectordb
 
-# 1. Kalıcı istemciyi başlatın
-client = microvectordb.PersistentClient(path="./my_vectordb")
-
-# 2. Koleksiyon oluşturun veya mevcut olanı açın
-collection = client.get_or_create_collection(
-    name="makaleler",
-    dimension=3,       # İsteğe bağlı, ilk eklemede otomatik algılanır
-    metric="cosine"    # "cosine", "dot_product" veya "euclidean"
-)
-
-# 3. Vektör, doküman ve metadata ekleyin
-collection.add(
-    ids=["doc1", "doc2", "doc3"],
-    embeddings=[
-        [0.9, 0.1, 0.0],
-        [0.1, 0.8, 0.1],
-        [0.0, 0.1, 0.9]
-    ],
-    documents=[
-        "Yapay zeka ve LLM modelleri",
-        "İlişkisel veritabanları mimarisi",
-        "Web tasarımı ve kullanıcı arayüzü"
-    ],
-    metadatas=[
-        {"kategori": "ai", "yazar": "Ahmet", "fiyat": 150},
-        {"kategori": "veritabani", "yazar": "Mehmet", "fiyat": 200},
-        {"kategori": "tasarim", "yazar": "Ayşe", "fiyat": 90}
-    ]
-)
-
-# 4. Semantik arama yapın (Top-2 En Yakın Sonuç)
-results = collection.query(
-    query_embeddings=[[0.85, 0.15, 0.0]],
-    n_results=2,
-    where={"kategori": "ai"}  # İsteğe bağlı metadata filtresi
-)
-
-print("Bulunan ID'ler:", results.ids[0])
-print("Dokümanlar:", results.documents[0])
-print("Benzerlik Skorları:", results.similarities[0])
-```
-
----
-
-## 🔍 Gelişmiş Metadata Filtreleme (Where Syntax)
-
-`query()`, `get()` ve `delete()` fonksiyonlarında gelişmiş filtreleme operatörlerini kullanabilirsiniz:
-
-```python
-# Fiyatı 100 TL ve üzeri olanlar ($gte)
-results = collection.query(query_embeddings=[...], where={"fiyat": {"$gte": 100}})
-
-# Kategori listesinde 'ai' veya 'tasarim' olanlar ($in)
-results = collection.query(query_embeddings=[...], where={"kategori": {"$in": ["ai", "tasarim"]}})
-
-# Çoklu koşul (Hem kategori 'ai' hem fiyat >= 100)
-results = collection.query(query_embeddings=[...], where={"kategori": "ai", "fiyat": {"$gte": 100}})
-```
-
----
-
-## 🚀 Büyük Veri & İleri Seviye Modüller (v0.2.0)
-
-### 1. IVF Kümeleme İndeksi (100K+ Vektörde 10-50x Hız)
-Büyük veri setlerinde yaklaşık en yakın komşu (ANN) araması yapmak için saf NumPy IVF indeksini kullanabilirsiniz:
-
-```python
-from microvectordb import IVFIndex
-import numpy as np
-
-# 1. İndeksi oluşturun (64 küme, en yakın 4 kümede arama)
-index = IVFIndex(n_clusters=64, nprobe=4)
-
-# 2. Vektörlerle eğitin
-vectors = np.random.randn(100000, 128).astype(np.float32)
-index.train(vectors)
-
-# 3. Işık hızında arayın
-query = np.random.randn(128).astype(np.float32)
-nearest_indices, distances = index.search(query, vectors, k=10)
-```
-
-### 2. Skalar Kuantizasyon (4 Kat Daha Az Bellek)
-Vektörlerinizi 32-bit float yerine 8-bit integer'a sıkıştırın:
-
-```python
-from microvectordb import ScalarQuantizer
-
-sq = ScalarQuantizer()
-sq.fit(vectors)
-
-# float32 -> int8 sıkıştırma
-compressed_vectors = sq.encode(vectors)
-print(sq.memory_stats(n_vectors=100000, dimension=128))
-# Tasarruf: %75 daha az RAM kullanımı!
+client = microvectordb.PersistentClient(path="./my_vectordb", use_mmap=False)
+collection = client.get_or_create_collection(name="makaleler", metric="cosine")
+collection.add(ids=["doc1"], embeddings=[[0.9, 0.1, 0.0]], documents=["Merhaba"], metadatas=[{"tag": "v1"}])
+res = collection.query(query_embeddings=[[0.9, 0.1, 0.0]], n_results=1, where={"tag": "v1"})
+client.close()
 ```
 
 ---
 
 ## 📁 Proje Mimarisi
 
-```
-vector db/
-├── pyproject.toml              # Modern pip yapılandırması
-├── setup.py                    # setuptools yapılandırması
-├── LICENSE                     # MIT Lisansı
-├── README.md                   # Kapsamlı Dokümantasyon
-├── requirements.txt            # Sadece numpy>=1.20
-│
-├── microvectordb/              # Çekirdek Kütüphane
-│   ├── __init__.py             # Dışa aktarılan ana arayüz (v0.2.0)
-│   ├── client.py               # PersistentClient & EphemeralClient
-│   ├── collection.py           # Koleksiyon yönetimi, CRUD ve optimize Query
-│   ├── distance.py             # Normalize cache'li Kosinüs, Dot ve Öklid çekirdekleri
-│   ├── ivf_index.py            # Saf NumPy IVF Kümeleme İndeksi
-│   ├── quantization.py         # Skalar int8 Kuantizasyon Motoru
-│   ├── storage.py              # SQLite + .npy (Memory-Mapped destekli)
-│   └── types.py                # Veri modelleri ve özel hata sınıfları
-│
-├── examples/                   # Çalışan Örnekler
-│   ├── 01_quickstart.py        # Temel başlangıç
-│   ├── 02_metadata_filter.py   # Gelişmiş filtreleme
-│   ├── 03_rag_integration.py   # RAG Chatbot entegrasyonu
-│   └── 04_benchmark.py         # QPS hız testi
-│
-├── tests/                      # Birim Testler (27/27 Geçti)
-│   ├── test_microvectordb.py   # Temel işlev testleri
-│   └── test_optimizations.py   # IVF, Kuantizasyon ve Cache testleri
-│
-└── kernels_experimental/       # Donanım Hızlandırma
-    ├── avx2_dot_product.c      # AVX2 C/Assembly çekirdeği
-    └── README.md               # Donanım hızlandırma rehberi
+```text
+MicroVectorDB/
+├── microvectordb/
+│   ├── __init__.py             # Ana paket arayüzü (v0.3.0)
+│   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient
+│   ├── collection.py           # Collection koordinatörü (RWLock, indeks/kuantizasyon, delta kalıcılık)
+│   ├── types.py                # Veri modelleri ve özel hata sınıfları
+│   ├── metrics/                # inv_norms Kosinüs, sq_norms Öklid, Dot, bloklu GEMM
+│   ├── storage/                # VectorBuffer, sürümlü .mvdbvec (CRC32+mmap), güvenli SQLite WAL
+│   ├── filtering/              # Ters metadata indeksi ($eq..$nin, $and/$or/$not, nested)
+│   ├── quantization/           # Taşmasız INT8 ScalarQuantizer, Float16, Binary (SIMD POPCNT)
+│   ├── indexes/                # K-Means++ bitişik IVFIndex, opsiyonel HNSWIndex
+│   ├── concurrency/            # Yazıcı-öncelikli RWLock
+│   ├── distance.py             # v0.2.0 uyumluluk cephesi -> metrics/
+│   └── ivf_index.py            # v0.2.0 uyumluluk cephesi -> indexes/ivf.py
+├── benchmarks/
+│   ├── run_benchmarks.py       # Otomatik JSON/CSV benchmark paketi
+│   └── results/                # Kayıtlı ölçüm çıktıları
+├── tests/                      # 52/52 birim, bütünlük, kurtarma ve eşzamanlılık testi
+├── examples/                   # Çalışan hızlı başlangıç, filtre, RAG ve hız örnekleri
+├── kernels_experimental/       # Deneysel AVX2 C/SIMD çekirdeği
+├── ARCHITECTURE_AUDIT.md       # v0.2.0 derinlemesine mimari ve performans denetimi
+├── BENCHMARK_REPORT.md         # Bilimsel benchmark raporu ve rakiplerle kıyas
+├── ROADMAP.md                  # 6 fazlı mühendislik yol haritası
+└── CHANGELOG.md                # Sürüm geçmişi
 ```
 
 ---
 
-## 👨‍💻 Geliştirici & Yazar
+## 🗺️ Dokümantasyon ve Yol Haritası
 
-**Huneyn Kaya**  
-GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)
+- [`ARCHITECTURE_AUDIT.md`](ARCHITECTURE_AUDIT.md) — Mevcut mimari analizi, 10 performans darboğazı ve güvenlik denetimi
+- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM ve FAISS karşılaştırması
+- [`ROADMAP.md`](ROADMAP.md) — Faz 1 (Tamamlandı) → Faz 2 (PQ, Query Optimizer, Disk İndeks) → Faz 3 (Sparse/Hybrid/RRF/RAG) → Faz 4 (WAL/Snapshot) → Faz 5 (FastAPI Sunucu) → Faz 6 (1M SIFT/GloVe & SIMD)
+- [`CHANGELOG.md`](CHANGELOG.md) — Detaylı sürüm notları
 
 ---
 
-## 📄 Lisans
+## 🧪 Test ve Benchmark Çalıştırma
 
-Bu proje **[MIT Lisansı](LICENSE)** ile lisanslanmıştır. Ticari ve kişisel projelerinizde özgürce kullanabilir, değiştirebilir ve dağıtabilirsiniz.
+```bash
+# Tüm testler (52/52):
+python -m unittest discover -s tests -v
+
+# Bilimsel benchmark paketi (JSON + CSV üretir):
+python benchmarks/run_benchmarks.py
+```
+
+---
+
+## 👨‍💻 Geliştirici & Lisans
+
+**Huneyn Kaya** · GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)  
+Bu proje **[MIT Lisansı](LICENSE)** ile lisanslanmıştır.

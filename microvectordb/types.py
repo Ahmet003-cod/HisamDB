@@ -4,12 +4,17 @@ microvectordb.types
 Veri yapıları, tip ipuçları ve özel hata sınıfları.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Union
 import numpy as np
 
 # Desteklenen metrikler
 MetricType = Literal["cosine", "dot_product", "euclidean"]
+
+# Desteklenen indeks, kuantizasyon ve depolama tipleri
+IndexType = Literal["flat", "ivf", "hnsw", "auto"]
+QuantizationType = Literal["none", "float16", "int8", "binary"]
+StorageDType = Literal["float32", "float16"]
 
 # Vektör tipleri (list of floats veya numpy array)
 VectorLike = Union[List[float], np.ndarray]
@@ -43,6 +48,25 @@ class QueryResult:
         return getattr(self, item)
 
 
+@dataclass
+class SearchResultItem:
+    """Tekil arama sonucu öğesi (ergonomik collection.search() API'si için)."""
+    id: str
+    score: float
+    distance: float
+    document: Optional[str] = None
+    metadata: Optional[Metadata] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "score": self.score,
+            "distance": self.distance,
+            "document": self.document,
+            "metadata": self.metadata,
+        }
+
+
 # Özel Hata Sınıfları
 class VectorDBError(Exception):
     """microvectordb temel hata sınıfı."""
@@ -66,4 +90,19 @@ class DimensionMismatchError(VectorDBError):
 
 class InvalidMetricError(VectorDBError):
     """Geçersiz benzerlik metriği seçildiğinde fırlatılır."""
+    pass
+
+
+class InvalidVectorError(VectorDBError):
+    """NaN, Inf veya geçersiz şekle sahip vektör verildiğinde fırlatılır."""
+    pass
+
+
+class InvalidCollectionNameError(VectorDBError):
+    """Geçersiz veya güvensiz koleksiyon adı verildiğinde fırlatılır."""
+    pass
+
+
+class DataCorruptionError(VectorDBError):
+    """Diskteki veri dosyalarında bütünlük veya sağlama toplamı hatası tespit edildiğinde fırlatılır."""
     pass

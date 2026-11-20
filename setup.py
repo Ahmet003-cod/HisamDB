@@ -8,8 +8,8 @@ if os.path.exists("README.md"):
 
 setup(
     name="microvectordb",
-    version="0.2.0",
-    description="A lightweight, fast, and persistent vector database with ChromaDB/FAISS-like API",
+    version="0.3.0",
+    description="A high-performance, low-memory, persistent vector database for Python, RAG, and AI agents",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Huneyn Kaya",
@@ -18,6 +18,11 @@ setup(
     install_requires=[
         "numpy>=1.20.0",
     ],
+    extras_require={
+        "hnsw": ["hnswlib>=0.7.0"],
+        "bench": ["psutil>=5.9.0", "faiss-cpu>=1.7.4"],
+        "dev": ["pytest>=7.0.0", "psutil>=5.9.0"],
+    },
     python_requires=">=3.8",
     classifiers=[
         "Programming Language :: Python :: 3",
