@@ -16,6 +16,8 @@ Matematiksel temel:
 from typing import Optional, Tuple
 import numpy as np
 
+from microvectordb.metrics.native_simd import int8_dot_f32_native
+
 
 _TILE_ROWS = 1024  # 1024 x D x 4B ~ 512KB-3MB -> CPU L2/L3 cache dostu
 
@@ -150,8 +152,6 @@ class ScalarQuantizer:
 
         q32 = np.asarray(query, dtype=np.float32).ravel()
         tile = min(_TILE_ROWS, n)
-        scratch = np.empty((tile, d), dtype=np.float32)
-        out = np.empty(n, dtype=np.float32)
 
         if metric == "euclidean":
             qp = q32 - self.bias
@@ -159,11 +159,17 @@ class ScalarQuantizer:
             q_sq = np.float32(np.dot(qp, qp))
 
             if precomputed_scaled_sq is not None:
-                for start in range(0, n, tile):
-                    end = min(start + tile, n)
-                    sz = end - start
-                    np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
-                    out[start:end] = np.dot(scratch[:sz], w)
+                nat_dots = int8_dot_f32_native(w, quantized_db)
+                if nat_dots is not None:
+                    out = nat_dots
+                else:
+                    scratch = np.empty((tile, d), dtype=np.float32)
+                    out = np.empty(n, dtype=np.float32)
+                    for start in range(0, n, tile):
+                        end = min(start + tile, n)
+                        sz = end - start
+                        np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
+                        out[start:end] = np.dot(scratch[:sz], w)
                 out *= np.float32(-2.0)
                 out += precomputed_scaled_sq
                 out += q_sq
@@ -171,6 +177,8 @@ class ScalarQuantizer:
                 return out
 
             # precomputed_scaled_sq verilmediyse tek geçişte hem dot hem ||scale*q||^2 hesapla
+            scratch = np.empty((tile, d), dtype=np.float32)
+            out = np.empty(n, dtype=np.float32)
             scale_sq = (self.scale * self.scale).astype(np.float32)
             for start in range(0, n, tile):
                 end = min(start + tile, n)
@@ -188,11 +196,17 @@ class ScalarQuantizer:
         if metric == "dot_product":
             w = q32 * self.scale
             const_bias = np.float32(np.dot(q32, self.bias))
-            for start in range(0, n, tile):
-                end = min(start + tile, n)
-                sz = end - start
-                np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
-                out[start:end] = np.dot(scratch[:sz], w)
+            nat_dots = int8_dot_f32_native(w, quantized_db)
+            if nat_dots is not None:
+                out = nat_dots
+            else:
+                scratch = np.empty((tile, d), dtype=np.float32)
+                out = np.empty(n, dtype=np.float32)
+                for start in range(0, n, tile):
+                    end = min(start + tile, n)
+                    sz = end - start
+                    np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
+                    out[start:end] = np.dot(scratch[:sz], w)
             out += const_bias
             np.negative(out, out=out)  # distance = -dot
             return out
@@ -206,11 +220,17 @@ class ScalarQuantizer:
             if precomputed_recon_inv is None:
                 _, precomputed_recon_inv = self.precompute_db_norms(quantized_db)
 
-            for start in range(0, n, tile):
-                end = min(start + tile, n)
-                sz = end - start
-                np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
-                out[start:end] = np.dot(scratch[:sz], w)
+            nat_dots = int8_dot_f32_native(w, quantized_db)
+            if nat_dots is not None:
+                out = nat_dots
+            else:
+                scratch = np.empty((tile, d), dtype=np.float32)
+                out = np.empty(n, dtype=np.float32)
+                for start in range(0, n, tile):
+                    end = min(start + tile, n)
+                    sz = end - start
+                    np.copyto(scratch[:sz], quantized_db[start:end], casting="unsafe")
+                    out[start:end] = np.dot(scratch[:sz], w)
             out += const_bias
             out *= precomputed_recon_inv
             np.clip(out, np.float32(-1.0), np.float32(1.0), out=out)

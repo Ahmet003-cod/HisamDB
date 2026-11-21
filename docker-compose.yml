@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: microvectordb:0.7.0
+    image: microvectordb:1.0.0
     container_name: microvectordb-server
     ports:
       - "8000:8000"

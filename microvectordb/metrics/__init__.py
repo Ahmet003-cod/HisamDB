@@ -11,6 +11,11 @@ from microvectordb.metrics.kernels import (
     validate_metric,
     validate_vectors,
 )
+from microvectordb.metrics.native_simd import (
+    is_native_simd_available,
+    native_simd_path,
+    set_native_simd_enabled,
+)
 
 __all__ = [
     "VALID_METRICS",
@@ -22,4 +27,7 @@ __all__ = [
     "normalize_vectors",
     "compute_distances",
     "top_k_indices",
+    "is_native_simd_available",
+    "native_simd_path",
+    "set_native_simd_enabled",
 ]

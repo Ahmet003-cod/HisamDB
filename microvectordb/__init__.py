@@ -37,6 +37,11 @@ from microvectordb.indexes import (
     QueryOptimizer,
     is_hnsw_available,
 )
+from microvectordb.metrics import (
+    is_native_simd_available,
+    native_simd_path,
+    set_native_simd_enabled,
+)
 from microvectordb.quantization import (
     BinaryQuantizer,
     Float16Quantizer,
@@ -76,7 +81,7 @@ from microvectordb.types import (
     VectorDBError,
 )
 
-__version__ = "0.7.0"
+__version__ = "1.0.0"
 __all__ = [
     "MicroVectorDB",
     "AsyncMicroVectorDB",
@@ -99,6 +104,9 @@ __all__ = [
     "DiskStreamingScanner",
     "QueryOptimizer",
     "is_hnsw_available",
+    "is_native_simd_available",
+    "native_simd_path",
+    "set_native_simd_enabled",
     "ScalarQuantizer",
     "Float16Quantizer",
     "BinaryQuantizer",

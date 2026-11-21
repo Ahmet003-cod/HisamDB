@@ -3,10 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions & compiled kernels
+# C/Rust extensions & compiled kernels
 *.so
 *.dll
 *.dylib
+*.lib
+*.exp
+*.pdb
 *.o
 *.obj
 

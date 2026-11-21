@@ -243,3 +243,94 @@ Canlı yerel Uvicorn sunucusu (`SHA-256 Bearer Auth` + Pydantic v2 doğrulama + 
 | **`POST /v1/collections/{name}/search` (8 paralel istemci, 50K HNSW)** | 8 | 27.252 | 38.540 | **278.4** |
 
 > **Bilimsel Değerlendirme:** Gömülü çekirdek araması `~0.3 ms` sürerken uçtan uca tekil HTTP isteği `3.94 ms` sürmektedir (farkın ~3.6 ms'si TCP loopback + FastAPI/Pydantic v2 JSON ayrıştırma + SHA-256 Bearer doğrulamasından gelir). Toplu sorgular için `/batch_search` HTTP protokol yükünü amorti ederek tek bağlantıda **1,610 QPS**'e ulaşır.
+
+---
+
+## 10. Faz 6 (`v1.0.0`): 1.000.000 Vektör Ölçek, 384D–1536D LLM Embedding ve Native Rust SIMD vs C++ FAISS
+
+*Ölçüm betiği: [`benchmarks/run_benchmarks_v10.py`](benchmarks/run_benchmarks_v10.py) · Ham veriler: [`benchmarks/results/benchmark_v1.0.0.json`](benchmarks/results/benchmark_v1.0.0.json) ve [`benchmark_v1.0.0.csv`](benchmarks/results/benchmark_v1.0.0.csv).*  
+*Dağılım: Boyut-ölçekli çok-kümeli Gaussian Manifold (`L2-normalize float32`, `noise_norm=0.65`, küme içi kosinüs ≈ 0.70 — gerçek OpenAI/BGE/MiniLM embedding uzaylarını yansıtır).*  
+*Rakip Erişilebilirlik Notu: Bu makinede `FAISS 1.13.2` (C++ SIMD) canlı ölçüldü. `ChromaDB 0.5.0` NumPy 2.0 uyumsuzluğu nedeniyle çalışmamakta; `Qdrant`, `Milvus` ve `LanceDB` ayrı sunucu/ek paket gerektirdiğinden kanıtlanmamış rakip rakamı yazılmamıştır.*
+
+### 10.1. Opsiyonel Rust Native SIMD (AVX2 + FMA3 + POPCNT) vs Saf NumPy vs C++ FAISS 1.13.2
+
+![Rust Native SIMD vs Saf NumPy vs C++ FAISS](docs/assets/simd_vs_numpy_vs_faiss.png)
+
+| Çekirdek Grubu | Motor | P50 (ms) | P95 (ms) | QPS | Recall@10 | RAM (MB) | Hızlanma |
+|---|---|---:|---:|---:|---:|---:|---:|
+| **IVF-PQ (100K×128D)** | MVDB Saf NumPy | 1.180 | 2.276 | 772.5 | **0.293** | 5.62 | 1.00x |
+| **IVF-PQ (100K×128D)** | **MVDB Rust Native SIMD** | **0.620** | **0.772** | **1,574.6** | **0.293** | 5.62 | **1.90x (2.04x QPS)** |
+| **IVF-PQ (100K×128D)** | FAISS `IndexIVFPQ` (C++) | 0.573 | 0.941 | 1,759.3 | 0.196 | 2.29 | *(MVDB P95 & Recall üstün!)* |
+| **Flat PQ (100K×128D)** | MVDB Saf NumPy | 9.415 | 13.841 | 101.4 | **0.088** | 1.65 | 1.00x |
+| **Flat PQ (100K×128D)** | **MVDB Rust Native SIMD** | **1.948** | **2.178** | **513.5** | **0.088** | 1.65 | **4.83x (5.06x QPS)** |
+| **Flat PQ (100K×128D)** | FAISS `IndexPQ` (C++) | 1.098 | 2.221 | 698.3 | 0.086 | 1.53 | *(MVDB P95 daha düşük!)* |
+| **INT8 Scalar (100K×128D)** | MVDB Saf NumPy | 15.880 | 18.005 | 62.0 | **0.979** | 12.97 | 1.00x |
+| **INT8 Scalar (100K×128D)** | **MVDB Rust Native SIMD** | **9.269** | 14.439 | **99.7** | **0.979** | 12.97 | **1.71x** |
+| **INT8 Scalar (100K×128D)** | FAISS `IndexSQ8` (C++) | 5.583 | 5.798 | 180.8 | 0.972 | 12.21 | *(MVDB Recall üstün)* |
+| **Binary Hamming (100K×768D)** | MVDB Saf NumPy | 13.098 | 18.612 | 72.9 | 0.069 | **9.16** | 1.00x |
+| **Binary Hamming (100K×768D)** | **MVDB Rust POPCNT SIMD** | **3.022** | **4.222** | **320.3** | 0.069 | **9.16** | **4.33x (4.39x QPS)** |
+
+---
+
+### 10.2. Büyük Ölçek Eğrisi: `10K → 100K → 500K → 1,000,000` Vektör (128D, Cosine)
+
+![10K'dan 1 Milyon Vektöre Ölçek Performansı](docs/assets/scale_1m_benchmark.png)
+
+| Ölçek (128D) | Motor | İnşa (sn) | P50 (ms) | QPS | Recall@10 | RAM (MB) |
+|---|---|---:|---:|---:|---:|---:|
+| **10K** (`4.9 MB` ham) | MVDB DiskIndex (MMap) | 0.29 | 0.902 | 1,057.5 | **1.000** | **0.18** |
+| **10K** | MVDB IVF-PQ (Native SIMD) | 4.83 | 0.470 | 2,080.6 | **0.442** | 1.50 |
+| **10K** | MVDB IVF (Float32) | 0.20 | 0.339 | 2,907.9 | **1.000** | 5.00 |
+| **10K** | MVDB HNSW (`M=16, efS=64`) | 0.27 | **0.122** | **7,856.8** | **1.000** | 6.26 |
+| **10K** | FAISS `IndexHNSWFlat` | 0.22 | 0.089 | 10,411.7 | 1.000 | 6.26 |
+| **100K** (`48.8 MB` ham) | MVDB DiskIndex (MMap) | 1.33 | 1.589 | 550.3 | **1.000** | **1.59** |
+| **100K** | MVDB IVF-PQ (Native SIMD) | 12.42 | 1.384 | 703.2 | **0.250** | 5.62 |
+| **100K** | MVDB IVF (Float32) | 1.61 | 1.121 | 712.4 | **1.000** | 49.97 |
+| **100K** | MVDB HNSW (`M=16, efS=64`) | 8.26 | **0.218** | **4,356.8** | 0.966 | 62.56 |
+| **100K** | FAISS `IndexHNSWFlat` | 5.76 | 0.208 | 4,395.3 | 0.968 | 62.56 |
+| **500K** (`244.1 MB` ham) | MVDB DiskIndex (MMap) | 4.10 | 6.539 | 137.0 | **1.000** | **7.76** |
+| **500K** | **MVDB IVF-PQ (Native SIMD)** | 20.84 | **1.548** | **637.9** | **0.192** | 21.42 |
+| **500K** | FAISS `IndexIVFPQ` | 6.87 | 1.667 | 604.2 | 0.186 | 11.44 |
+| **500K** | **MVDB HNSW (`M=16, efS=64`)** | 67.51 | **0.470** | **2,041.7** | 0.818 | 312.81 |
+| **500K** | FAISS `IndexHNSWFlat` | 67.49 | 0.593 | 1,680.5 | 0.882 | 312.81 |
+| **1,000,000** (`488.3 MB` ham) | **MVDB DiskIndex (MMap)** | **13.65** | **9.563** | 89.7 | **1.000** | **15.52 (-%96.8!)** |
+| **1,000,000** | **MVDB IVF-PQ (Native SIMD)** | 42.39 | **2.362** | **424.7** | **0.196** | **42.71 (-%91.3!)** |
+| **1,000,000** | MVDB IVF (Float32) | 9.58 | 4.064 | 248.3 | **1.000** | 499.73 |
+| **1,000,000** | **MVDB HNSW (`M=16, efS=64`)** | 180.42 | **0.605** | **1,639.8** | **0.744** | 625.61 |
+| **1,000,000** | FAISS `IndexIVFFlat` | 8.35 | 3.225 | 299.1 | 1.000 | 495.91 |
+| **1,000,000** | FAISS `IndexIVFPQ` | 11.00 | 1.971 | 496.3 | 0.118 | 22.89 |
+| **1,000,000** | FAISS `IndexHNSWFlat` | 157.99 | 0.554 | 1,807.6 | 0.736 | 625.61 |
+
+> **Öne Çıkanlar:**
+> - **1.000.000 vektör** üzerinde `MVDB DiskIndex (MMap)` yalnızca **15.52 MB RAM** ile **%100.0 (`1.000`) Recall@10** ve **9.56 ms** gecikme elde etmiştir.
+> - **500.000 vektörde** `MVDB IVF-PQ (Native SIMD)` (`1.55 ms`, R@10=`0.192`), C++ `FAISS IndexIVFPQ`'yu (`1.67 ms`, R@10=`0.186`) hem hız hem doğrulukta geride bırakmıştır!
+> - **1.000.000 vektörde** `MVDB HNSW` **`0.605 ms` (1,640 QPS)** ile milisaniye-altı arama sunmuş ve `FAISS IndexHNSWFlat`'ten daha yüksek Recall@10 (`0.744` vs `0.736`) vermiştir.
+
+---
+
+### 10.3. Yüksek Boyutlu LLM Embedding'leri (`384D`, `768D`, `1536D`)
+
+![Yüksek Boyutlu LLM Embedding Performansı](docs/assets/memory_vs_recall.png)
+
+| Profil & Boyut | Motor | P50 (ms) | QPS | Recall@10 | RAM (MB) |
+|---|---|---:|---:|---:|---:|
+| **MiniLM-384D** (`50K`, `73.2 MB` ham) | MVDB Flat (Float32) | 3.455 | 278.3 | 1.000 | 73.24 |
+| **MiniLM-384D** | MVDB Float16 (2x RAM↓) | 25.698 | 38.4 | 1.000 | 36.62 |
+| **MiniLM-384D** | MVDB INT8 (Rust SIMD / NumPy) | **6.146** / 8.909 | **161.7** / 111.9 | **0.984** | **18.69** |
+| **MiniLM-384D** | MVDB Binary + Rescore (20x) | **0.360** | **2,606.6** | 0.696 | **2.29** *(+raw)* |
+| **MiniLM-384D** | **MVDB DiskIndex (MMap)** | **0.785** | **1,075.3** | **1.000** | **0.95 (-%98.7!)** |
+| **MiniLM-384D** | MVDB HNSW / FAISS HNSW | **0.269** / 0.257 | 2,512 / 3,667 | **0.980** / 0.980 | 80.11 |
+| **BGE/E5-768D** (`50K`, `146.5 MB` ham) | MVDB Flat (Float32) | 6.296 | 156.6 | 1.000 | 146.48 |
+| **BGE/E5-768D** | MVDB Float16 (2x RAM↓) | 61.399 | 16.2 | 1.000 | 73.24 |
+| **BGE/E5-768D** | MVDB INT8 (Rust SIMD / NumPy) | **16.106** / 30.763 | **56.7** / 31.8 | **0.968** | **37.00** |
+| **BGE/E5-768D** | MVDB Binary + Rescore (20x) | **0.529** | **1,669.9** | 0.726 | **4.58** *(+raw)* |
+| **BGE/E5-768D** | **MVDB DiskIndex (MMap)** | **1.678** | **500.5** | **1.000** | **1.14 (-%99.2!)** |
+| **BGE/E5-768D** | MVDB HNSW / FAISS HNSW | **0.376** / 0.333 | 2,392 / 2,899 | 0.956 / 0.968 | 153.35 |
+| **OpenAI-1536D** (`25K`, `146.5 MB` ham) | MVDB Flat (Float32) | 6.297 | 157.1 | 1.000 | 146.48 |
+| **OpenAI-1536D** | MVDB Float16 (2x RAM↓) | 61.359 | 16.2 | 0.998 | 73.24 |
+| **OpenAI-1536D** | MVDB INT8 (Rust SIMD / NumPy) | **14.096** / 26.025 | **67.8** / 38.5 | **0.986** | **36.81** |
+| **OpenAI-1536D** | **MVDB Binary + Rescore (20x)** | **0.975** | **933.3** | **0.884** | **4.58** *(+raw)* |
+| **OpenAI-1536D** | **MVDB DiskIndex (MMap)** | **1.504** | **526.3** | **1.000** | **0.95 (-%99.4!)** |
+| **OpenAI-1536D** | MVDB HNSW / FAISS HNSW | **0.405** / 0.350 | 2,193 / 2,691 | **0.992** / 0.998 | 149.92 |
+
+> **Önemli Mimari Bulgu:** `OpenAI-1536D` embedding'lerinde **`DiskIndex (MMap)`** yalnızca **0.95 MB RAM** ile **%100.0 Recall@10** vererek bellek-içi Flat Float32'den **4.2x daha hızlı (`1.50 ms` vs `6.30 ms`)** çalışmaktadır. Detaylı Native SIMD, GPU/CUDA ve `v2.x` dağıtık mimari analizi için [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](docs/ARCHITECTURE_SCALE_RESEARCH.md) raporuna bakın.

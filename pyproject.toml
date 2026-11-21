@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microvectordb"
-version = "0.7.0"
+version = "1.0.0"
 description = "A high-performance, low-memory, persistent vector database for Python, RAG, and AI agents"
 readme = "README.md"
 license = { text = "MIT" }

@@ -82,11 +82,14 @@
 
 ---
 
-## Faz 6 — Büyük Ölçekli Araştırma, SIMD/Native ve Rakip Benchmark (`v1.0.0`)
-**Durum:** Sıradaki Aşama
-- **Standart Veri Kümeleri:** SIFT1M, GloVe, BEIR üzerinde 10K / 100K / 500K / 1M ölçekte ve 128 / 384 / 768 / 1024 / 1536 boyutlarda Qdrant, FAISS, ChromaDB, LanceDB ve Milvus ile eşit donanım & eşit Recall@10 benchmarkları (`BENCHMARK_REPORT.md` + grafikler).
-- **Native SIMD / C / Rust Uzantısı Değerlendirmesi:** `kernels_experimental/avx2_dot_product.c` tabanlı toplu SIMD / INT8 VNNI / Binary POPCNT çekirdeklerinin NumPy/OpenBLAS'a karşı gerçek kazanım analizi.
-- **GPU ve Dağıtık Mimari Araştırması:** Sharding, replikasyon ve opsiyonel CUDA/CuPy fizibilite raporu.
+## Faz 6 — Büyük Ölçekli Araştırma, Native SIMD, 1M/1536D Benchmarklar ve Görsel Dokümantasyon (`v1.0.0`)
+**Durum:** ✅ Tamamlandı (`90/90` test, `benchmarks/results/benchmark_v1.0.0.json`, `docs/ARCHITECTURE_SCALE_RESEARCH.md` ve `docs/assets/*.png` doğrulandı)
+- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD (`kernels_experimental/mvdb_simd.rs`):** AVX2 + FMA3 + 64-bit POPCNT çekirdeği; `Flat PQ` **4.83x**, `768D Binary` **4.33x**, `IVF-PQ` **2.04x QPS**, `INT8` **1.71x–1.91x** hızlanma (derlenmemiş ortamlarda şeffaf saf NumPy fallback).
+- **1.000.000 Vektör & 384D / 768D / 1536D Benchmarkları (`benchmarks/run_benchmarks_v10.py`):**
+  - `1M × 128D`: `DiskIndex (MMap)` **15.52 MB RAM (-%96.8)** ile **9.56 ms, Recall=1.000**; `HNSW` **0.605 ms (1,640 QPS)**; `IVF-PQ` `500K`'da FAISS `IndexIVFPQ`'yu hem gecikme hem doğrulukta geçti.
+  - `OpenAI-1536D (25K)`: `DiskIndex` **0.95 MB RAM (-%99.4), 1.50 ms, Recall=1.000**; `Binary+Rescore` **0.975 ms, Recall=0.884**.
+- **GPU/CUDA ve `v2.x` Dağıtık Mimari Araştırması (`docs/ARCHITECTURE_SCALE_RESEARCH.md`):** PCIe-vs-compute başa-baş analizi, opsiyonel `cupy` stratejisi ve Consistent-Hashing Sharding + WAL Replikasyon + gRPC taslağı.
+- **Yayın Kalitesinde Görseller & Erişilebilir `README.md`:** Gerçek JSON verilerinden üretilen 6 PNG grafik (`docs/assets/*.png`) ve teknik terimleri günlük benzetmelerle açıklayan kapsamlı sözlük.
 
 ---
 

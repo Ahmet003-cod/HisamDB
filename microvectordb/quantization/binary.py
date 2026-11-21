@@ -12,6 +12,8 @@ otomatik geri düşer.
 from typing import Optional, Tuple
 import numpy as np
 
+from microvectordb.metrics.native_simd import binary_hamming_u64_native
+
 _POPCOUNT_LUT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
 _HAS_BITWISE_COUNT = hasattr(np, "bitwise_count")
 
@@ -81,10 +83,14 @@ class BinaryQuantizer:
             return np.empty(0, dtype=np.int32)
 
         qb = query_bits.reshape(1, -1)
-        if _HAS_BITWISE_COUNT and db_bits.shape[1] % 8 == 0:
+        if db_bits.shape[1] % 8 == 0:
             db64 = np.ascontiguousarray(db_bits).view(np.uint64)
             q64 = np.ascontiguousarray(qb).view(np.uint64)
-            return np.bitwise_count(np.bitwise_xor(db64, q64)).sum(axis=1, dtype=np.int32)
+            nat_hd = binary_hamming_u64_native(q64.ravel(), db64)
+            if nat_hd is not None:
+                return nat_hd.astype(np.int32, copy=False)
+            if _HAS_BITWISE_COUNT:
+                return np.bitwise_count(np.bitwise_xor(db64, q64)).sum(axis=1, dtype=np.int32)
 
         return _POPCOUNT_LUT[np.bitwise_xor(db_bits, qb)].sum(axis=1, dtype=np.int32)
 

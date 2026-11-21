@@ -2,6 +2,29 @@
 
 Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [1.0.0] - 2026-11-21 (Faz 6 — 1M Ölçek & 1536D LLM Benchmarkları, Opsiyonel Rust Native SIMD, Görsel Grafikler ve Herkes İçin Anlaşılır Dokümantasyon)
+
+### Eklenenler
+- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD Çekirdeği (`kernels_experimental/mvdb_simd.rs` & `microvectordb/metrics/native_simd.py`):**
+  - Harici crate gerektirmeden tek `rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native` komutuyla derlenir ve `ctypes` üzerinden otomatik algılanır; derlenmemiş ortamlarda sıfır hata ile %100 saf NumPy yoluna döner.
+  - `ProductQuantizer`, `IVFPQIndex`, `ScalarQuantizer` (INT8) ve `BinaryQuantizer` (64-bit donanım `POPCNT`) içine şeffaf biçimde entegre edildi; `is_native_simd_available()`, `set_native_simd_enabled()`, `native_simd_path()` kamusal API'leri eklendi.
+  - **Ölçülen Gerçek Kazanımlar (Saf NumPy → Rust Native SIMD):**
+    - `Flat PQ (100K × 128D)`: `9.415 ms → 1.948 ms` (**4.83x hızlı**, P95 `2.18 ms` < C++ FAISS `2.22 ms`).
+    - `Binary Hamming (100K × 768D)`: `13.098 ms → 3.022 ms` (**4.33x hızlı**, yalnızca `9.16 MB RAM`).
+    - `IVF-PQ (100K × 128D)`: `1.180 ms → 0.620 ms` (**2.04x QPS**, P95 `0.77 ms` < FAISS `0.94 ms`, Recall@10 `0.293` > FAISS `0.196`).
+    - `INT8 Scalar`: `128D` **1.71x**, `768D` **1.91x**, `1536D` **1.85x** hızlanma (`Recall@10 = 0.968–0.986`).
+- **1.000.000 Vektör & 384D/768D/1536D Bilimsel Benchmark Paketi (`benchmarks/run_benchmarks_v10.py`):**
+  - `1,000,000 × 128D`: `MVDB DiskIndex (MMap)` **15.52 MB RAM (-%96.8)** ile **9.56 ms** ve **%100.0 Recall@10**; `MVDB HNSW` **0.605 ms (1,640 QPS)** (`Recall@10 = 0.744` > FAISS `0.736`); `MVDB IVF-PQ (SIMD)` **2.36 ms (42.7 MB RAM)** (`500K` ölçeğinde C++ FAISS `IndexIVFPQ`'yu hem gecikmede hem doğrulukta geride bıraktı!).
+  - `OpenAI-1536D (25K)`: `DiskIndex (MMap)` **0.95 MB RAM (-%99.4)** ile **1.50 ms** ve **%100.0 Recall@10**; `Binary + Rescore (20x)` **0.975 ms (933 QPS)** ve **%88.4 Recall@10** (`4.58 MB` ikili RAM).
+- **Yayın Kalitesinde Görsel Grafikler & Mimari Diyagram (`benchmarks/generate_charts.py` → `docs/assets/*.png`):**
+  - 6 yüksek çözünürlüklü PNG görsel doğrudan gerçek JSON benchmark çıktılarından üretilip GitHub `README.md` ve `BENCHMARK_REPORT.md` içine gömüldü.
+- **Herkes İçin Anlaşılır Teknik Kavramlar Sözlüğü & Karar Rehberi (`README.md`):**
+  - Embedding, Cosine/Euclidean/Dot, Flat/IVF/IVF-PQ/HNSW/DiskIndex, Quantization, Hibrit Arama/BM25/RRF, WAL/Tombstone/Compaction ve Recall/P50/QPS kavramları günlük benzetmelerle yalın Türkçe anlatıldı.
+- **Araştırma Raporu & Testler:** [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](docs/ARCHITECTURE_SCALE_RESEARCH.md) (Native SIMD, GPU/CUDA/CuPy fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı) ve 4 yeni Faz 6 SIMD parite/yüksek-boyut testi (toplam **90/90 test**).
+
+### İyileştirilenler
+- `ScalarQuantizer.compute_distances_quantized()`: Native SIMD yolunda gereksiz `float32` scratch bellek tahsisi kaldırıldı.
+
 ## [0.7.0] - 2026-11-21 (Faz 5 — Üretim FastAPI REST Sunucusu, Güvenlik, Prometheus `/metrics`, Python SDK & Docker)
 
 ### Eklenenler

@@ -29,6 +29,7 @@ from microvectordb.metrics.kernels import (
     top_k_indices,
     validate_metric,
 )
+from microvectordb.metrics.native_simd import pq_adc_u16_native
 from microvectordb.quantization.product import ProductQuantizer
 from microvectordb.types import DataCorruptionError, MetricType
 
@@ -385,10 +386,15 @@ class IVFPQIndex:
 
             if self.metric in ("euclidean", "cosine"):
                 if use_u16 and precomp_flat is not None and shared_neg2_flat is not None:
-                    # Tek-atış vektörize 1B LUT toplama (16 Python döngüsü yerine 1 C çağrısı!)
                     lut_f = precomp_flat[cid] + shared_neg2_flat
-                    sq_d = np.take(lut_f, codes_t).sum(axis=0)
-                    sq_d += np.float32(q_sq + self._centroid_sq_norms[cid] - np.float32(2.0) * q_c_dots[cid])
+                    c_bias = float(q_sq + self._centroid_sq_norms[cid] - np.float32(2.0) * q_c_dots[cid])
+                    nat_sq = pq_adc_u16_native(lut_f, codes_t, bias=c_bias)
+                    if nat_sq is not None:
+                        sq_d = nat_sq
+                    else:
+                        # Tek-atış vektörize 1B LUT toplama (saf NumPy)
+                        sq_d = np.take(lut_f, codes_t).sum(axis=0)
+                        sq_d += np.float32(c_bias)
                 elif precomp is not None and shared_neg2_qdot is not None:
                     lut = precomp[cid] + shared_neg2_qdot
                     sq_d = pq.accumulate_adc(lut, codes_t)
@@ -397,7 +403,8 @@ class IVFPQIndex:
                     q_res = q_work - self.centroids[cid]
                     lut = pq.compute_distance_table(q_res, metric="euclidean")
                     if use_u16:
-                        sq_d = np.take(lut.ravel(), codes_t).sum(axis=0)
+                        nat_sq = pq_adc_u16_native(lut.ravel(), codes_t, bias=0.0)
+                        sq_d = nat_sq if nat_sq is not None else np.take(lut.ravel(), codes_t).sum(axis=0)
                     else:
                         sq_d = pq.accumulate_adc(lut, codes_t)
 
@@ -408,13 +415,18 @@ class IVFPQIndex:
                     d_c = np.clip(sq_d * np.float32(0.5), np.float32(0.0), np.float32(2.0))
             else:
                 # dot_product: distance = -(q . c + q . r_hat)
-                c_neg_dot = np.float32(-q_c_dots[cid])
+                c_neg_dot = float(-q_c_dots[cid])
                 if use_u16 and shared_ip_flat is not None:
-                    d_c = np.take(shared_ip_flat, codes_t).sum(axis=0)
+                    nat_d = pq_adc_u16_native(shared_ip_flat, codes_t, bias=c_neg_dot)
+                    if nat_d is not None:
+                        d_c = nat_d
+                    else:
+                        d_c = np.take(shared_ip_flat, codes_t).sum(axis=0)
+                        d_c += np.float32(c_neg_dot)
                 else:
                     assert shared_ip_lut is not None
                     d_c = pq.accumulate_adc(shared_ip_lut, codes_t)
-                d_c += c_neg_dot
+                    d_c += np.float32(c_neg_dot)
 
             cand_ids.append(ids_c)
             cand_dists.append(d_c)

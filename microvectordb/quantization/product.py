@@ -23,6 +23,7 @@ from microvectordb.metrics.kernels import (
     normalize_vectors,
     validate_metric,
 )
+from microvectordb.metrics.native_simd import pq_adc_u8_native
 from microvectordb.types import DataCorruptionError, MetricType
 
 _PQ_MAGIC = b"MVDBPQ01"
@@ -275,10 +276,14 @@ class ProductQuantizer:
     def accumulate_adc(lut: np.ndarray, codes_t: np.ndarray) -> np.ndarray:
         """
         Bitişik sütun-öncelikli `codes_t` (M, N) üzerinden L1/L2 cache dostu ADC toplamı.
+        Yerel SIMD çekirdeği derlenmişse sıfır ara-matris tahsisiyle yerel yoldan çalışır.
         """
         m_cnt, n = codes_t.shape
         if n == 0:
             return np.empty(0, dtype=np.float32)
+        native_out = pq_adc_u8_native(lut, codes_t, bias=0.0)
+        if native_out is not None:
+            return native_out
         acc = np.empty(n, dtype=np.float32)
         np.take(lut[0], codes_t[0], out=acc)
         for m in range(1, m_cnt):
