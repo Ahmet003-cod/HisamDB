@@ -1,10 +1,11 @@
 # MicroVectorDB 🚀
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/microvectordb.svg)](https://pypi.org/project/microvectordb/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
-[![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](requirements.txt)
-[![Tests: 90/90 Passing](https://img.shields.io/badge/tests-90%2F90%20passing-success.svg)](tests/)
+[![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/requirements.txt)
+[![Tests: 90/90 Passing](https://img.shields.io/badge/tests-90%2F90%20passing-success.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/tree/main/tests)
 
 **MicroVectorDB**, yapay zekâ uygulamaları (RAG, anlamsal arama, sohbet botları, öneri sistemleri) için geliştirilmiş; **yüksek performanslı**, **ultra düşük bellek (RAM) tüketimli**, **hibrit arama (Vektör + Metin)** destekli, **çökme korumalı (WAL)** ve çekirdeğinde **yalnızca `numpy`** gerektiren açık kaynaklı bir Python Vektör Veritabanıdır.
 
@@ -12,7 +13,7 @@ Gömülü Python kütüphanesi olarak tek satırda başlayabilir, `asyncio` ile 
 
 > **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
-![MicroVectorDB v1.0.0 Katmanlı Sistem Mimarisi](docs/assets/architecture_overview.png)
+![MicroVectorDB v1.0.0 Katmanlı Sistem Mimarisi](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/architecture_overview.png)
 
 ---
 
@@ -80,11 +81,11 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ## 📊 Doğrulanmış Performans Sonuçları ve Grafikler (`v1.0.0`)
 
-*Tüm grafikler ve tablolar kanıtlanmamış tahmini rakam içermez; doğrudan bu depodaki [`benchmarks/results/`](benchmarks/results/) JSON kayıtlarından üretilmiştir. Donanım: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA/POPCNT), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS), `rustc 1.96.0`, FAISS 1.13.2. Tam bilimsel rapor: [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md).*
+*Tüm grafikler ve tablolar kanıtlanmamış tahmini rakam içermez; doğrudan bu depodaki [`benchmarks/results/`](https://github.com/Ahmet003-cod/MicroVectorDB/tree/main/benchmarks/results) JSON kayıtlarından üretilmiştir. Donanım: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA/POPCNT), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS), `rustc 1.96.0`, FAISS 1.13.2. Tam bilimsel rapor: [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/BENCHMARK_REPORT.md).*
 
 ### 1. `v0.2.0 → v1.0.0` Evrim Özeti (Gerçek Hızlanma Çarpanları)
 
-![MicroVectorDB Evrimi v0.2.0 - v1.0.0 Hızlanma Grafiği](docs/assets/evolution_speedup.png)
+![MicroVectorDB Evrimi v0.2.0 - v1.0.0 Hızlanma Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/evolution_speedup.png)
 
 | Optimizasyon Alanı | Eski Durum | MicroVectorDB `v1.0.0` | Kazanım |
 |---|---|---|---|
@@ -99,7 +100,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 2. Büyük Ölçek Performansı: `10.000 → 1.000.000` Vektör (128D vs C++ FAISS)
 
-![10K'dan 1 Milyon Vektöre Ölçek ve RAM Karşılaştırması](docs/assets/scale_1m_benchmark.png)
+![10K'dan 1 Milyon Vektöre Ölçek ve RAM Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/scale_1m_benchmark.png)
 
 - **1.000.000 Vektörde `DiskIndex (MMap)`:** Ham veri `488.3 MB` iken yalnızca **`15.52 MB RAM` (-%96.8 tasarruf)** kullanarak **`9.56 ms`** gecikmeyle **`%100.0` (`1.000`) Recall@10** sağlar!
 - **1.000.000 Vektörde `HNSW`:** **`0.605 ms` (`1,640 QPS`)** ile milisaniye-altı arama yapar ve `FAISS IndexHNSWFlat`'ten daha yüksek Recall@10 (`0.744` vs `0.736`) elde eder.
@@ -109,7 +110,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 3. Yüksek Boyutlu LLM Embedding'leri (`384D MiniLM`, `768D BGE/E5`, `1536D OpenAI`)
 
-![Yüksek Boyutlu LLM Embedding Performansı: RAM, Gecikme ve Doğruluk](docs/assets/memory_vs_recall.png)
+![Yüksek Boyutlu LLM Embedding Performansı: RAM, Gecikme ve Doğruluk](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/memory_vs_recall.png)
 
 - **OpenAI `1536D` (`25K` vektör, ham `146.5 MB`):**
   - **`DiskIndex (MMap)`:** Yalnızca **`0.95 MB RAM` (-%99.4 tasarruf!)** ile **`1.50 ms` (`526 QPS`)** ve **`%100.0` Recall@10** — RAM'deki Flat Float32'den (`6.30 ms`) **4.2x daha hızlı!**
@@ -121,7 +122,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 4. Opsiyonel Rust Native SIMD (`AVX2 + FMA3 + POPCNT`) vs Saf NumPy vs C++ FAISS
 
-![Rust Native SIMD vs Saf NumPy vs C++ FAISS Karşılaştırması](docs/assets/simd_vs_numpy_vs_faiss.png)
+![Rust Native SIMD vs Saf NumPy vs C++ FAISS Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/simd_vs_numpy_vs_faiss.png)
 
 Çekirdekte hiçbir zorunlu C/Rust derleyicisi olmadan %100 saf NumPy ile çalışan MicroVectorDB, isteyen kullanıcılar için tek komutla derlenen sıfır-bağımlılıklı Rust SIMD çekirdeği (`kernels_experimental/mvdb_simd.rs`) sunar:
 - **Flat PQ (`100K × 128D`):** `9.41 ms → 1.95 ms` (**4.83x hızlanma**, P95 `2.18 ms` < FAISS `2.22 ms`).
@@ -133,7 +134,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 5. Neden Hibrit Arama? — Kurumsal RAG Doğruluk & Hız Kıyaslaması
 
-![Dense vs BM25 vs Hibrit RAG Doğruluk ve Hız Grafiği](docs/assets/hybrid_rag_accuracy.png)
+![Dense vs BM25 vs Hibrit RAG Doğruluk ve Hız Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/hybrid_rag_accuracy.png)
 
 10.000 kurumsal dokümanda (hem anlamsal sorular hem kesin `ERR-XXXX` hata kodu / terim sorguları):
 - Yalnızca vektör (`Dense-Only`) kesin kodları kaçırarak **%53 Hit@10**, yalnızca metin (`BM25-Only`) eş anlamlı ifadeleri kaçırarak **%50 Hit@10** alırken;
@@ -144,22 +145,22 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 ## 📦 Kurulum
 
 ```bash
-# 1. Temel kurulum (yalnızca numpy — sıfır ağır bağımlılık!):
-pip install .
+# 1. PyPI'dan temel kurulum (yalnızca numpy — sıfır ağır bağımlılık!):
+pip install microvectordb
 
 # 2. Opsiyonel HNSW graf indeksi desteği ile:
-pip install ".[hnsw]"
+pip install "microvectordb[hnsw]"
 
 # 3. Opsiyonel hızlı orjson metadata yükleyici ile:
-pip install ".[fast]"
+pip install "microvectordb[fast]"
 
 # 4. Opsiyonel üretim FastAPI REST sunucusu (FastAPI + Uvicorn + Pydantic):
-pip install ".[server]"
+pip install "microvectordb[server]"
 
 # 5. Tüm performans ve sunucu eklentileri (hnswlib + orjson + server):
-pip install ".[all]"
+pip install "microvectordb[all]"
 
-# 6. Geliştirme ve benchmark araçları:
+# 6. Kaynak koddan geliştirme ve benchmark araçlarıyla kurulum:
 pip install -e ".[all,dev,bench]"
 ```
 
@@ -369,12 +370,12 @@ MicroVectorDB/
 
 ## 🗺️ Dokümantasyon
 
-- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Tüm fazların tam ölçüm tabloları (`10K → 1M`, `128D–1536D`, SIMD, Hibrit RAG, Async, HTTP REST)
-- [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](docs/ARCHITECTURE_SCALE_RESEARCH.md) — Native Rust SIMD analizi, GPU/CUDA fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı
-- [`docs/API_SERVER.md`](docs/API_SERVER.md) — FastAPI REST sunucusu, SHA-256 Auth/Tenant güvenliği, Prometheus `/metrics`, Python SDK ve Docker
-- [`docs/RELIABILITY.md`](docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
-- [`ARCHITECTURE_AUDIT.md`](ARCHITECTURE_AUDIT.md) — Projenin `v0.2.0` başlangıç denetimi ve çözülen darboğazların kökeni
-- [`ROADMAP.md`](ROADMAP.md) & [`CHANGELOG.md`](CHANGELOG.md) — Tamamlanan 6 fazın yol haritası ve sürüm notları
+- [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/BENCHMARK_REPORT.md) — Tüm fazların tam ölçüm tabloları (`10K → 1M`, `128D–1536D`, SIMD, Hibrit RAG, Async, HTTP REST)
+- [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/ARCHITECTURE_SCALE_RESEARCH.md) — Native Rust SIMD analizi, GPU/CUDA fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı
+- [`docs/API_SERVER.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/API_SERVER.md) — FastAPI REST sunucusu, SHA-256 Auth/Tenant güvenliği, Prometheus `/metrics`, Python SDK ve Docker
+- [`docs/RELIABILITY.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
+- [`ARCHITECTURE_AUDIT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/ARCHITECTURE_AUDIT.md) — Projenin `v0.2.0` başlangıç denetimi ve çözülen darboğazların kökeni
+- [`ROADMAP.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/ROADMAP.md) & [`CHANGELOG.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/CHANGELOG.md) — Tamamlanan 6 fazın yol haritası ve sürüm notları
 
 ---
 
@@ -401,4 +402,4 @@ python examples/07_rest_server_and_sdk.py
 ## 👨‍💻 Geliştirici & Lisans
 
 **Ahmet GÜN** · GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)  
-Bu proje **[MIT Lisansı](LICENSE)** ile lisanslanmıştır.
+Bu proje **[MIT Lisansı](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/LICENSE)** ile lisanslanmıştır.

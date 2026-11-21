@@ -1,20 +1,61 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "microvectordb"
 version = "1.0.0"
-description = "A high-performance, low-memory, persistent vector database for Python, RAG, and AI agents"
+description = "A high-performance, low-memory, hybrid-search & RAG vector database for Python (NumPy-only core)"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Ahmet GÜN" }
 ]
+maintainers = [
+    { name = "Ahmet GÜN" }
+]
 requires-python = ">=3.8"
+keywords = [
+    "vector-database",
+    "vectordb",
+    "rag",
+    "semantic-search",
+    "hybrid-search",
+    "bm25",
+    "hnsw",
+    "ivf",
+    "quantization",
+    "embeddings",
+    "numpy",
+    "llm",
+    "ai",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database :: Database Engines/Servers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Indexing",
+]
 dependencies = [
     "numpy>=1.20.0"
 ]
+
+[project.urls]
+Homepage = "https://github.com/Ahmet003-cod/MicroVectorDB"
+Repository = "https://github.com/Ahmet003-cod/MicroVectorDB"
+Documentation = "https://github.com/Ahmet003-cod/MicroVectorDB#readme"
+Changelog = "https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Ahmet003-cod/MicroVectorDB/issues"
 
 [project.scripts]
 microvectordb-server = "microvectordb.api.server:main"
@@ -30,3 +71,7 @@ dev = [
     "psutil>=5.9.0",
     "httpx>=0.27.0"
 ]
+
+[tool.setuptools.packages.find]
+include = ["microvectordb*"]
+exclude = ["tests*", "benchmarks*", "docs*", "examples*", "kernels_experimental*"]
