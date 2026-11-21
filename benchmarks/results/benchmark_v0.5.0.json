@@ -1,0 +1,200 @@
+{
+  "metadata": {
+    "microvectordb_version": "0.5.0",
+    "python": "3.11.9",
+    "os": "Windows-10-10.0.26300-SP0",
+    "cpu_logical_cores": 12,
+    "ram_total_gb": 15.73,
+    "numpy": "2.0.2",
+    "faiss": "1.13.2",
+    "hnswlib": true,
+    "orjson": true,
+    "timestamp": "2026-11-21 11:09:39"
+  },
+  "issue2_pq_benchmarks": [
+    {
+      "category": "Issue#2-PQ",
+      "engine": "MicroVectorDB v0.5.0",
+      "name": "MVDB v0.5 IVF-PQ (Precomputed LUT, C=128, np=8)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 15.896,
+      "p50_ms": 2.267,
+      "p95_ms": 3.776,
+      "qps": 412.2,
+      "recall_at_10": 0.27,
+      "ram_mb": 5.62
+    },
+    {
+      "category": "Issue#2-PQ",
+      "engine": "MicroVectorDB v0.5.0",
+      "name": "MVDB v0.5 Flat PQ (Batched matmul, M=16, 8-bit)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 15.36,
+      "p50_ms": 15.475,
+      "p95_ms": 18.712,
+      "qps": 63.1,
+      "recall_at_10": 0.054,
+      "ram_mb": 1.65
+    },
+    {
+      "category": "FAISS-Ref",
+      "engine": "FAISS 1.13.2",
+      "name": "FAISS IndexIVFPQ (nlist=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "dim": 128,
+      "metric": "cosine",
+      "build_s": 3.787,
+      "p50_ms": 0.636,
+      "p95_ms": 0.803,
+      "qps": 1625.4,
+      "recall_at_10": 0.258,
+      "ram_mb": 2.29
+    }
+  ],
+  "issue1_reload_benchmarks": [
+    {
+      "index": "IVF-PQ (100K x 128D, keep_raw=F)",
+      "v04_reload_ms": 542.0,
+      "v05_reload_ms": 198.9,
+      "speedup_vs_v04": 2.72,
+      "loaded_from_disk": true,
+      "vec_ram_mb": 0.0
+    },
+    {
+      "index": "DiskIndex (100K x 128D, MMap)",
+      "v04_reload_ms": 532.8,
+      "v05_reload_ms": 125.8,
+      "speedup_vs_v04": 4.23,
+      "loaded_from_disk": true,
+      "vec_ram_mb": 0.0
+    },
+    {
+      "index": "IVF (100K x 128D)",
+      "v04_reload_ms": 781.3,
+      "v05_reload_ms": 486.7,
+      "speedup_vs_v04": 1.61,
+      "loaded_from_disk": true,
+      "vec_ram_mb": 49.59
+    },
+    {
+      "index": "HNSW (100K x 128D, M=16, efC=128)",
+      "v04_reload_ms": 940.6,
+      "v05_reload_ms": 867.8,
+      "speedup_vs_v04": 1.08,
+      "loaded_from_disk": true,
+      "vec_ram_mb": 49.59,
+      "post_tombstone_reload_ms": 1201.6
+    },
+    {
+      "index": "MMap + 100K Zengin Metadata (lazy idx)",
+      "v04_reload_ms": null,
+      "v05_reload_ms": 328.7,
+      "speedup_vs_v04": null,
+      "loaded_from_disk": true,
+      "vec_ram_mb": 0.0,
+      "lazy_meta_pending": true
+    }
+  ],
+  "issue3_delete_wal_snapshot": [
+    {
+      "scenario": "10K x 128D Tekil Silme (WAL normal)",
+      "v03_p50_ms": 181.9,
+      "v05_p50_ms": 0.403,
+      "v05_p95_ms": 0.694,
+      "v05_min_ms": 0.18,
+      "speedup_vs_v03": 451.4,
+      "compact_ms": 151.66,
+      "reclaimed_slots": 25
+    },
+    {
+      "scenario": "10K x 128D Tekil Silme (WAL full fsync)",
+      "v03_p50_ms": 181.9,
+      "v05_p50_ms": 1.967,
+      "v05_p95_ms": 3.567,
+      "v05_min_ms": 1.378,
+      "speedup_vs_v03": 92.5,
+      "compact_ms": 165.11,
+      "reclaimed_slots": 25
+    },
+    {
+      "scenario": "100K x 128D Tekil Silme (WAL normal)",
+      "v03_p50_ms": null,
+      "v05_p50_ms": 0.382,
+      "v05_p95_ms": 0.899,
+      "v05_min_ms": 0.173,
+      "speedup_vs_v03": null,
+      "compact_ms": null,
+      "reclaimed_slots": null
+    },
+    {
+      "scenario": "10K x 128D SHA-256 Snapshot Create / Restore",
+      "v03_p50_ms": null,
+      "v05_p50_ms": 203.09,
+      "v05_p95_ms": 63.48,
+      "v05_min_ms": 4,
+      "speedup_vs_v03": null,
+      "compact_ms": null,
+      "reclaimed_slots": null
+    }
+  ],
+  "phase3_hybrid_10k": {
+    "n_docs": 10000,
+    "dim": 128,
+    "index_type": "hnsw",
+    "ingest_s": 0.712,
+    "modes": [
+      {
+        "mode": "Dense-Only (HNSW)",
+        "p50_ms": 0.299,
+        "p95_ms": 0.472,
+        "qps": 3127.2,
+        "hit_at_1": 0.52,
+        "hit_at_10": 0.53
+      },
+      {
+        "mode": "BM25-Only (Okapi BM25)",
+        "p50_ms": 0.476,
+        "p95_ms": 0.707,
+        "qps": 1982.0,
+        "hit_at_1": 0.5,
+        "hit_at_10": 0.5
+      },
+      {
+        "mode": "Sparse-Vector-Only (Inverted Index)",
+        "p50_ms": 0.151,
+        "p95_ms": 0.263,
+        "qps": 7268.8,
+        "hit_at_1": 0.5,
+        "hit_at_10": 0.55
+      },
+      {
+        "mode": "Hybrid (Dense + BM25, RRF)",
+        "p50_ms": 0.936,
+        "p95_ms": 1.284,
+        "qps": 1033.4,
+        "hit_at_1": 0.16,
+        "hit_at_10": 1.0
+      },
+      {
+        "mode": "Hybrid (Dense + BM25, Weighted Min-Max)",
+        "p50_ms": 1.11,
+        "p95_ms": 1.468,
+        "qps": 867.0,
+        "hit_at_1": 0.19,
+        "hit_at_10": 1.0
+      },
+      {
+        "mode": "3-Way Hybrid (Dense + BM25 + Sparse, RRF)",
+        "p50_ms": 1.247,
+        "p95_ms": 1.843,
+        "qps": 751.9,
+        "hit_at_1": 0.53,
+        "hit_at_10": 0.78
+      }
+    ]
+  }
+}

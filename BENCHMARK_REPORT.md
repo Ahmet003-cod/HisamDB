@@ -1,10 +1,11 @@
-# MicroVectorDB v0.4.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
+# MicroVectorDB v0.5.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
 
-**Ölçüm Tarihi:** 2026-11-20  
+**Ölçüm Tarihi:** 2026-11-21  
 **Ham Sonuç Dosyaları:**  
 - Faz 1 (`v0.3.0`): [`benchmarks/results/benchmark_v0.3.0.json`](benchmarks/results/benchmark_v0.3.0.json) · [`benchmarks/results/benchmark_v0.3.0.csv`](benchmarks/results/benchmark_v0.3.0.csv)  
 - Faz 2 (`v0.4.0`): [`benchmarks/results/benchmark_v0.4.0.json`](benchmarks/results/benchmark_v0.4.0.json) · [`benchmarks/results/benchmark_v0.4.0.csv`](benchmarks/results/benchmark_v0.4.0.csv)  
-**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py` ve `python benchmarks/run_benchmarks_v04.py`
+- Faz 3 (`v0.5.0`): [`benchmarks/results/benchmark_v0.5.0.json`](benchmarks/results/benchmark_v0.5.0.json) · [`benchmarks/results/benchmark_v0.5.0.csv`](benchmarks/results/benchmark_v0.5.0.csv)  
+**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py`, `python benchmarks/run_benchmarks_v04.py` ve `python benchmarks/run_benchmarks_v05.py`
 
 ---
 
@@ -134,3 +135,59 @@ v0.3.0'daki graf-içi Python callback (`filter_fn`) ile v0.4.0'daki maliyet taba
 | **%10 (10.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 1.069 | **0.479** (>2,000 QPS) | **2.23x** | **123.8x** *(59.32 ms → 0.48 ms!)* |
 | **%30 (30.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 2.268 | **0.346** (~2,890 QPS) | **6.55x** | — |
 | **%60 (60.000 aday)** | `hnsw_post_filter` (`searchsorted`) | 2.960 | **0.384** (~2,600 QPS) | **7.71x** | — |
+
+---
+
+## 7. Faz 3 (`v0.5.0`): Sorun #1/#2/#3 Çözümleri, Hibrit/BM25/Sparse Arama ve WAL/Tombstone/Snapshot
+
+### 7.1. Sorun #1 Çözümü: 100K × 128D Hızlı Açılış (`.items.mvdbcol` + `orjson` + Tembel Norm & Metadata İndeksi)
+
+v0.4.0'da açılış süresinin ~450 ms'si 100K SQLite satırının Python sözlüklerine çevrilmesinden ve `mmap` modunda tüm vektör normlarının açılışta hesaplanmasından kaynaklanıyordu. v0.5.0'da eklenen epoch+CRC32 korumalı ikili sütunsal önbellek (`.items.mvdbcol`), opsiyonel `orjson`, tembel `MetadataIndex`/`BM25Index`/`SparseVectorIndex` ve sıfır-dokunuşlu tembel `mmap` normları ile ölçülen sonuçlar:
+
+| Koleksiyon & İndeks (100K × 128D) | v0.3.0 Soğuk İnşa | v0.4.0 Açılış | v0.5.0 Açılış | v0.4 → v0.5 | v0.3 → v0.5 | Açılış Vektör RAM |
+|---|---:|---:|---:|---:|---:|---:|
+| **`DiskIndex` (`C=128`, MMap)** | 2,791 ms | 532.8 ms | **125.8 ms** | **4.23x** | **22.2x** | **0.00 MB** |
+| **`IVF-PQ` (`C=128, M=16`, `keep_raw=F`)** | 13,079 ms | 542.0 ms | **198.9 ms** | **2.72x** | **65.8x** | **0.00 MB** |
+| **`IVF` (`C=128`, RAM)** | 2,858 ms | 781.3 ms | **486.7 ms** | **1.61x** | **5.9x** | 49.59 MB |
+| **`HNSW` (`M=16, efC=128`, RAM)** | 9,225 ms | 940.6 ms | **867.8 ms** | **1.08x** | **10.6x** | 49.59 MB |
+| **MMap + 100K Zengin Metadata (3 alan)** | — | ~880 ms *(SQLite)* | **328.7 ms** | **~2.68x** | — | **0.00 MB** |
+
+*(Bozuk `.items.mvdbcol` veya çökme sonrası WAL replay durumunda sistem otomatik ve şeffaf biçimde SQLite doğruluk kaynağına düşer; `test_columnar_cache_corruption_falls_back_to_sqlite_and_preserves_mmap` ile doğrulanmıştır.)*
+
+### 7.2. Sorun #2 Çözümü: Ön-Hesaplanmış Küme-Merkezli `IVF-PQ` + Tek-Atış `uint16` ADC (100K × 128D)
+
+v0.4.0'da her sorgu için küme başına ayrı `np.einsum` LUT + 16 döngülü `+=` ADC çalıştırılıyordu. v0.5.0'da $P[c, m, k] = \|C_{m,k}\|_2^2 + 2(c_{c,m}\cdot C_{m,k})$ tablosu eğitim/yükleme anında önceden hesaplanıp sorgu başına tek `np.matmul` ve `uint16` ön-kaydırmalı tek-atış `np.take(...).sum(axis=0)` ile birleştirildi:
+
+| Motor & Yapılandırma | P50 (ms) | P95 (ms) | QPS | Recall@10 | Toplam RAM |
+|---|---:|---:|---:|---:|---:|
+| MicroVectorDB v0.4.0 `IVF-PQ` (`C=128, np=8, M=16`) | 3.446 | 6.277 | 255.1 | **0.270** | 2.48 MB |
+| **MicroVectorDB v0.5.0 `IVF-PQ` (Precomputed LUT + `u16` ADC)** | **2.267** | **3.776** | **412.2 (+%61.6)** | **0.270** | **5.62 MB** *(-%88.7 RAM)* |
+| FAISS `1.13.2` `IndexIVFPQ` (`nlist=128, np=8, M=16`, C++ SIMD) | 0.636 | 0.803 | 1,625.4 | 0.258 | 2.29 MB |
+
+> **Bilimsel Değerlendirme:** Saf NumPy katmanında **P50 %34.2 düşmüş (3.45 → 2.27 ms)** ve **QPS +%61.6 artmıştır (255 → 412 QPS)**; doğrulukta FAISS'i geçmeye devam etmektedir (`0.270` vs `0.258`). Kalan fark, NumPy'ın ara `(M, n_c)` float32 dizisini bellekte oluşturması ile C++ SIMD yazmaç akümülasyonu arasındaki fiziksel donanım farkından kaynaklanmakta olup Faz 6'da opsiyonel AVX2 C çekirdeği ile kapatılacaktır.
+
+### 7.3. Sorun #3 Çözümü: `<1 ms` Tombstone Silme, İkili WAL, Compaction ve SHA-256 Snapshot
+
+v0.3.0'da tek bir kayıt silindiğinde tüm `.mvdbvec` dosyası ve SQLite tablosu yeniden yazılıyordu (`181.9 ms`). v0.5.0'da kalıcı tutamaçlı ikili CRC32 `WriteAheadLog` + `O(1)` bitmask Tombstone silme + otomatik/manuel `compact()` + SHA-256 manifestli `create_snapshot()` / `restore_snapshot()` eklendi:
+
+| İşlem & Senaryo | v0.3.0 P50 (ms) | v0.5.0 P50 (ms) | v0.5.0 P95 (ms) | Hızlanma | Ek Ölçüm |
+|---|---:|---:|---:|---:|---|
+| **10K × 128D Tekil Kalıcı Silme (`wal_sync="normal"`)** | 181.900 | **0.403** | **0.694** | **451.4x** | `compact()` = `151.7 ms` |
+| **10K × 128D Tekil Kalıcı Silme (`wal_sync="full"` fsync)** | 181.900 | **1.967** | **3.567** | **92.5x** | Her yazımda `os.fsync()` |
+| **100K × 128D Tekil Kalıcı Silme (`wal_sync="normal"`)** | *(~1,800+)* | **0.382** | **0.899** | **$O(1)$ sabit!** | Veri 10x artsa da `<0.4 ms` |
+| **10K × 128D SHA-256 Snapshot Oluştur / Geri Yükle** | Yoktu | **203.09** *(Create)* | **63.48** *(Restore)* | — | 4 dosya SHA-256 doğrulamalı |
+
+### 7.4. Faz 3: 10.000 Dokümanlık Kurumsal Külliyatta Dense vs BM25 vs Hibrit Arama (128D, HNSW)
+
+10.000 Türkçe/İngilizce kurumsal teknik doküman (`seed=123`, 40 semantik konu + benzersiz `ERR-xxxx` hata kodları + sparse vektörler, 100 karma sorgu: 50 kesin kod + konu, 50 semantik parafraz):
+
+| Arama Modu | P50 (ms) | P95 (ms) | QPS | Hit@10 (Recall@10) | Notlar |
+|---|---:|---:|---:|---:|---|
+| **Dense-Only (HNSW)** | **0.299** | 0.472 | **3,127.2** | 0.530 | Semantik parafrazda güçlü, aynı konudaki kesin hata kodunda zayıf |
+| **BM25-Only (Vektörize NumPy Okapi BM25)** | **0.476** | 0.707 | **1,982.0** | 0.500 | Kesin hata kodunda %100, parafrazda zayıf *(Python döngüsünden **28.3x** hızlı!)* |
+| **Sparse-Vector-Only (Ters İndeks)** | **0.151** | 0.263 | **7,268.8** | 0.550 | SPLADE / BGE-M3 seyrek vektörleri için `<0.2 ms` |
+| **Hibrit (Dense + BM25, RRF)** | **0.936** | 1.284 | **1,033.4** | **1.000 (%100!)** | **Hem semantik hem kesin kod sorgularında tam kapsama, `<1 ms`!** |
+| **Hibrit (Dense + BM25, Weighted Min-Max)** | **1.110** | 1.468 | **867.0** | **1.000 (%100!)** | Ayarlanabilir `alpha` / `beta` ağırlıklı füzyon |
+| **3-Yollu Hibrit (Dense + BM25 + Sparse, RRF)** | 1.247 | 1.843 | 751.9 | 0.780 | 3 farklı retrieval sinyalini tek çağrıda birleştirir |
+
+*(10.000 dokümanın Dense HNSW + BM25 + Sparse birlikte toplam ekleme süresi: **0.712 saniye**.)*

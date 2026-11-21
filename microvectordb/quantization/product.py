@@ -260,7 +260,8 @@ class ProductQuantizer:
             q32 = np.pad(q32, (0, self.padded_dim - q32.shape[0]), mode="constant")
 
         q_blocks = q32.reshape(self.n_subvectors, self.sub_dim)  # (M, d_s)
-        dots = np.einsum("mkd,md->mk", self.codebooks, q_blocks, optimize=True)
+        # Batched BLAS matmul: (M, K, d_s) @ (M, d_s, 1) -> (M, K) — sıfır einsum_path Python yükü!
+        dots = np.matmul(self.codebooks, q_blocks[:, :, None]).squeeze(-1)
         if eff_metric in ("euclidean", "cosine"):
             # Birim kürede ||q_n - x_hat||^2 = 1 + ||x_hat||^2 - 2(q_n . x_hat)
             q_sq = np.einsum("md,md->m", q_blocks, q_blocks)[:, None]  # (M, 1)

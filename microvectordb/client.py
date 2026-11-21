@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from microvectordb.collection import Collection
 from microvectordb.metrics import validate_metric
+from microvectordb.search import TenantCollection
 from microvectordb.storage import StorageEngine, validate_collection_name
 from microvectordb.types import (
     CollectionAlreadyExistsError,
@@ -36,6 +37,7 @@ class BaseClient:
         metas = self._storage.load_collections_meta()
         for meta in metas:
             name = meta["name"]
+            meta_params = meta.get("index_params") or {}
             coll = Collection(
                 name=name,
                 storage=self._storage,
@@ -45,8 +47,9 @@ class BaseClient:
                 index_type=meta.get("index_type", "flat"),
                 quantization=meta.get("quantization", "none"),
                 storage_dtype=meta.get("storage_dtype", "float32"),
-                use_mmap=self._default_use_mmap,
-                index_params=meta.get("index_params"),
+                use_mmap=bool(self._default_use_mmap or meta_params.get("_use_mmap", False)),
+                keep_raw_vectors=bool(meta_params.get("_keep_raw_vectors", True)),
+                index_params=meta_params,
                 data_epoch=meta.get("data_epoch", 0),
             )
             self._collections[name] = coll
@@ -153,11 +156,33 @@ class BaseClient:
             for name in list(self._collections.keys()):
                 self.delete_collection(name)
 
+    def get_tenant_collection(self, name: str, tenant_id: str) -> TenantCollection:
+        """Çok kiracılı (Multi-Tenant) izole koleksiyon görünümü döndürür."""
+        return TenantCollection(self.get_collection(name), tenant_id=tenant_id)
+
     def checkpoint(self) -> None:
         """Tüm koleksiyonlar için tam CRC32 atomik checkpoint yazar."""
         with self._lock:
             for coll in self._collections.values():
                 coll.checkpoint()
+
+    def create_snapshot(self, snapshot_dir: str) -> Dict[str, Any]:
+        """
+        Tüm koleksiyonları checkpoint edip SHA-256 doğrulamalı tutarlı anlık görüntü alır.
+        """
+        with self._lock:
+            self.checkpoint()
+            return self._storage.create_snapshot(snapshot_dir)
+
+    @classmethod
+    def restore_snapshot(
+        cls,
+        snapshot_dir: str,
+        target_dir: str,
+        overwrite: bool = False,
+    ) -> Dict[str, Any]:
+        """SHA-256 manifestini doğrulayarak snapshot'ı `target_dir` konumuna geri yükler."""
+        return StorageEngine.restore_snapshot(snapshot_dir, target_dir, overwrite=overwrite)
 
     def close(self) -> None:
         """Tüm açık mmap ve SQLite kaynaklarını temiz biçimde kapatır."""

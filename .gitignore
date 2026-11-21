@@ -52,4 +52,6 @@ htmlcov/
 *.disk.meta
 *.hnsw.bin
 *.hnsw.meta.json
+*.wal
+*.mvdbcol
 *.tmp.*

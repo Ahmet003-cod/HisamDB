@@ -32,6 +32,7 @@ class VectorBuffer:
         self._size: int = 0
         self._capacity: int = 0
         self._is_mmap: bool = False
+        self._norms_ready: bool = True
 
         if initial_capacity > 0 and self._dim > 0:
             self._allocate(initial_capacity)
@@ -46,11 +47,28 @@ class VectorBuffer:
         self._inv_norms = np.empty(capacity, dtype=np.float32)
         self._capacity = capacity
         self._is_mmap = False
+        self._norms_ready = True
+
+    def _ensure_norms(self) -> None:
+        """MMap modunda ertelenmiş normları yalnızca ilk ihtiyaç anında hesaplar."""
+        if self._norms_ready:
+            return
+        if self._size == 0:
+            self._sq_norms = np.empty(0, dtype=np.float32)
+            self._inv_norms = np.empty(0, dtype=np.float32)
+        else:
+            sq, inv = compute_inv_norms(self._buf[: self._size])
+            self._sq_norms = sq
+            self._inv_norms = inv
+        self._norms_ready = True
 
     def _ensure_writable(self, min_capacity: int) -> None:
         """Tampon mmap ise veya kapasite yetersizse büyütüp yazılabilir hale getirir."""
         if not self._is_mmap and min_capacity <= self._capacity:
             return
+
+        if self._size > 0 and not self._norms_ready:
+            self._ensure_norms()
 
         new_cap = max(min_capacity, self._capacity * 2 if self._capacity > 0 else 64)
         new_buf = np.empty((new_cap, self._dim), dtype=self.dtype)
@@ -68,6 +86,7 @@ class VectorBuffer:
         self._inv_norms = new_inv
         self._capacity = new_cap
         self._is_mmap = False
+        self._norms_ready = True
 
     def release_mmap(self) -> None:
         """Windows'ta dosya kilitlenmesini önlemek için açık memmap tutamacını kapatır."""
@@ -105,15 +124,17 @@ class VectorBuffer:
     @property
     def sq_norms(self) -> np.ndarray:
         """Sıfır-kopya aktif L2 norm karesi görünümü (N,)."""
+        self._ensure_norms()
         return self._sq_norms[: self._size]
 
     @property
     def inv_norms(self) -> np.ndarray:
         """Sıfır-kopya aktif 1/L2 norm görünümü (N,)."""
+        self._ensure_norms()
         return self._inv_norms[: self._size]
 
     def load_array(self, arr: np.ndarray, is_mmap: bool = False) -> None:
-        """Diskten yüklenen matrisi tampona bağlar."""
+        """Diskten yüklenen matrisi tampona bağlar. MMap modunda normları tembel hesaplar."""
         self.release_mmap()
         if arr.size == 0:
             dim = arr.shape[1] if arr.ndim == 2 else self._dim
@@ -124,6 +145,7 @@ class VectorBuffer:
             self._sq_norms = np.empty(0, dtype=np.float32)
             self._inv_norms = np.empty(0, dtype=np.float32)
             self._is_mmap = False
+            self._norms_ready = True
             return
 
         self._dim = arr.shape[1]
@@ -132,9 +154,16 @@ class VectorBuffer:
         self.dtype = arr.dtype
         self._is_mmap = is_mmap
         self._buf = arr if is_mmap else np.ascontiguousarray(arr)
-        sq, inv = compute_inv_norms(self._buf)
-        self._sq_norms = sq
-        self._inv_norms = inv
+        if is_mmap:
+            # Sıfır disk sayfası okuma ile anında mmap açılışı!
+            self._sq_norms = np.empty(0, dtype=np.float32)
+            self._inv_norms = np.empty(0, dtype=np.float32)
+            self._norms_ready = False
+        else:
+            sq, inv = compute_inv_norms(self._buf)
+            self._sq_norms = sq
+            self._inv_norms = inv
+            self._norms_ready = True
 
     def append(self, vectors: np.ndarray) -> Tuple[int, int]:
         """
@@ -198,16 +227,25 @@ class VectorBuffer:
 
         idx_arr = np.asarray(indices, dtype=np.int64)
         new_buf = np.ascontiguousarray(self._buf[idx_arr], dtype=self.dtype)
-        new_sq = np.ascontiguousarray(self._sq_norms[idx_arr], dtype=np.float32)
-        new_inv = np.ascontiguousarray(self._inv_norms[idx_arr], dtype=np.float32)
+        if self._norms_ready:
+            new_sq = np.ascontiguousarray(self._sq_norms[idx_arr], dtype=np.float32)
+            new_inv = np.ascontiguousarray(self._inv_norms[idx_arr], dtype=np.float32)
+        else:
+            new_sq, new_inv = compute_inv_norms(new_buf)
         self.release_mmap()
         self._buf = new_buf
         self._sq_norms = new_sq
         self._inv_norms = new_inv
         self._size = n_keep
         self._capacity = n_keep
+        self._norms_ready = True
 
     def memory_bytes(self) -> int:
         """Tamponun RAM'de tuttuğu gerçek bayt miktarı (mmap vektör sayfaları hariç)."""
         vec_bytes = 0 if self._is_mmap else int(self._buf.nbytes)
-        return vec_bytes + int(self._sq_norms.nbytes) + int(self._inv_norms.nbytes)
+        norm_bytes = (
+            int(self._sq_norms.nbytes) + int(self._inv_norms.nbytes)
+            if self._norms_ready
+            else 0
+        )
+        return vec_bytes + norm_bytes

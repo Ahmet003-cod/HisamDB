@@ -1,55 +1,96 @@
 # MicroVectorDB 🚀
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
 [![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](requirements.txt)
 
-**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, güvenilir kalıcılığa sahip, yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
+**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG yeteneklerine sahip, WAL korumalı ve yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
 
 > **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
 ---
 
-## ✨ Neler Sunar? (v0.4.0 — Doğrulanmış Özellikler)
+## ✨ Neler Sunar? (v0.5.0 — Doğrulanmış Özellikler)
 
-- **Sıfır Ağır Çekirdek Bağımlılığı:** Yalnızca `numpy>=1.20` (NumPy 1.x ve 2.x tam uyumlu). İsteğe bağlı `hnswlib` ile graf tabanlı HNSW desteği (`pip install ".[hnsw]"`).
+- **Sıfır Ağır Çekirdek Bağımlılığı:** Çekirdek yalnızca `numpy>=1.20` gerektirir (NumPy 1.x ve 2.x tam uyumlu). Opsiyonel eklentiler: HNSW için `pip install ".[hnsw]"`, hızlı JSON/metadata açılışı için `pip install ".[fast]"` (`orjson`) veya hepsi için `pip install ".[all]"`.
+- **Hibrit Arama Motoru (`Dense + BM25 + Sparse`):**
+  - **Vektörize Okapi BM25 (`BM25Index`) + Türkçe/Unicode Tokenizer:** `İ → i`, `I → ı` uyumlu; derlenmiş NumPy ağırlıklarıyla 10K dokümanda **0.476 ms (1,982 QPS)**.
+  - **Seyrek Vektör İndeksi (`SparseVectorIndex`):** SPLADE / BGE-M3 / TF-IDF `{token: weight}` vektörleri için SQLite kalıcılığı ve **0.151 ms (7,269 QPS)**.
+  - **Akıllı Skor Füzyonu (`hybrid_search`):** Reciprocal Rank Fusion (**RRF**), **Min-Max** ve **Z-Score** normalizasyonu, ayarlanabilir `alpha` / `beta` / `sparse_weight` ağırlıkları; 10K külliyatta **0.936 ms (1,033 QPS)** ve **Hit@10 = 1.000**.
+- **RAG & Multi-Tenant İlkelleri:**
+  - `chunk_text()`, `add_documents()` (`_doc_id`, `_parent_id`, `_chunk_index`, `_tenant_id`), `retrieve_with_context()` (Parent-Child bağlam penceresi), `multi_vector_search()`, sonuç tekilleştirme (`deduplicate=True`), doküman gruplama (`group_by`, `max_per_group`), çekirdekten bağımsız harici `reranker` kancası (kilit dışında çalışır) ve katı kiracı yalıtımlı **`TenantCollection` (`db.get_tenant_collection(...)`)**.
 - **Çoklu İndeks Motoru + Anında Disk Kalıcılığı (CRC32 + Epoch):**
-  - **Optimize Flat (Exact):** Kosinüs için `(N,)` `inv_norms` (%50 daha az RAM), Öklid için önbellekli `sq_norms` (~15x hızlanma) ve OpenBLAS SGEMM/SGEMV.
-  - **`IVFIndex` (Saf NumPy):** K-Means++, bitişik küme blokları ve anında diskten yükleme (`3.7x` hızlı açılış).
-  - **`IVFPQIndex` (Saf NumPy, `index_type="ivf_pq"`):** Kaba IVF + artık Product Quantization (**%95 RAM tasarrufu**, diskten **24.1x hızlı açılış**).
-  - **`DiskIndex` (`index_type="disk"`) & `DiskStreamingScanner`:** Out-of-core bölümlenmiş `mmap` araması; 100K×128D'de yalnızca **2.35 MB RAM (%95.3 tasarruf)** ile **1.23 ms (684 QPS, Recall@10=1.000)**.
-  - **`HNSWIndex` (Opsiyonel `hnswlib`):** 100K×128D'de **3,463 QPS (P50 = 0.278 ms, Recall@10 = 0.975)** ve diskten **9.8x hızlı açılış**.
+  - **Optimize Flat (Exact):** `inv_norms` (%50 daha az Kosinüs RAM), `sq_norms` (~15x hızlı Öklid) ve OpenBLAS SGEMM/SGEMV.
+  - **`IVFIndex` & Ön-Hesaplanmış `IVFPQIndex` (Saf NumPy):** K-Means++, artık Product Quantization (**-%88.7 RAM**), sorgu başına tek batched `matmul` + `uint16` tek-atış ADC (**2.27 ms / 412 QPS**, FAISS `IndexIVFPQ`'dan daha yüksek Recall@10).
+  - **`DiskIndex` (`index_type="disk"`) & `DiskStreamingScanner`:** Out-of-core bölümlenmiş `mmap`; 100K×128D'de **2.35 MB RAM (%95.3 tasarruf)** ile **1.23 ms (684 QPS, Recall@10=1.000)** ve **125.8 ms** açılış (`0.00 MB` vektör RAM).
+  - **`HNSWIndex` (Opsiyonel `hnswlib`):** 100K×128D'de **3,463 QPS (P50 = 0.278 ms, Recall@10 = 0.975)**.
 - **Maliyet Tabanlı Query Optimizer (`collection.explain()`):**
-  - Filtre seçiciliği, koleksiyon boyutu, indeks tipi ve `mmap` durumuna göre otomatik `pre_filter_exact`, sıfır-set `np.searchsorted` tabanlı `hnsw_post_filter` (eksik sonuçta otomatik callback fallback), uyarlamalı `nprobe` artışı ve sabit-RAM `disk_stream` seçimi.
-  - 100K×128D %10 filtreli HNSW sorgusu: **0.479 ms (>2,000 QPS)** — v0.2.0'a göre **123.8x hızlanma**.
-- **Entegre Kuantizasyon & Düşük Bellek Modları:**
-  - `quantization="float16"` (~2x RAM tasarrufu, Recall@10 ≈ 0.999)
-  - `quantization="int8"` (Taşmasız ölçek-ağırlıklı `ScalarQuantizer`, ~4x RAM tasarrufu, Recall@10 ≈ 0.965–0.980)
-  - `quantization="pq"` (Product Quantization + `np.einsum` ADC, **~30x RAM tasarrufu**)
-  - `quantization="binary"` (1-bit SIMD `bitwise_count`, 32x sıkıştırma + isteğe bağlı float32 yeniden skorlama)
-- **Ters İndeksli Gelişmiş Metadata Filtreleme:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`, `$contains`, `$and`, `$or`, `$not` ve iç içe (`"author.country"`) filtreler.
-- **Güvenilir Depolama & Eşzamanlılık:** 64-byte hizalı `.mvdbvec`, CRC32 doğrulama, atomik yazma (`fsync` + `os.replace`), $O(M)$ artımlı ekleme, çökme kurtarma, rollback, SQLite WAL, path-traversal koruması, v0.2.0 `.npy` göçü ve yazıcı-öncelikli `RWLock`.
+  - Seçicilik bazlı otomatik `pre_filter_exact`, sıfır-set `np.searchsorted` tabanlı `hnsw_post_filter` (100K %10 filtreli sorguda **0.479 ms — v0.2.0'a göre 123.8x hızlanma**), uyarlamalı `nprobe` ve sabit-RAM `disk_stream`.
+- **Entegre Kuantizasyon:** `float16` (2x RAM), `int8` (taşmasız `ScalarQuantizer`, 4x RAM, Recall@10 ≈ 0.965–0.980), `pq` (Product Quantization, 30x RAM), `binary` (32x RAM, SIMD `bitwise_count` + isteğe bağlı float32 rescore).
+- **Üretim Düzeyi Güvenilirlik (`WAL` + `<1 ms` Tombstone + `Snapshot`):**
+  - 21-byte başlıklı CRC32 ikili **`WriteAheadLog`** (`MWAL`, yarım yazma budaması / torn-write recovery, çökme sonrası otomatik `replay()`, `wal_sync="normal" | "full"`).
+  - $O(1)$ bitmask **Tombstone silme (`0.38–0.40 ms`!)** + otomatik/manuel `compact()`.
+  - **SHA-256 doğrulamalı `create_snapshot()` / `restore_snapshot()`**, atomik `.mvdbvec`, `.items.mvdbcol` sütunsal önbellek, path-traversal koruması, v0.2.0 `.npy` otomatik göçü ve yazıcı-öncelikli `RWLock`.
 
 ---
 
-## 📊 Doğrulanmış Performans Sonuçları (v0.4.0)
+## 🔧 v0.5.0'da Çözülen 3 Kritik Performans ve Güvenilirlik Sorunu
+
+v0.4.0 benchmark denetiminde tespit edilen ve üretim kullanımını etkileyen **3 temel darboğaz**, v0.5.0'da bilimsel profilleme ile kök nedeninden çözülmüştür:
+
+### 1. Sorun #1: 100K Koleksiyon Açılış (Reload) Süresi (~450 ms SQLite Yükü)
+- **Kök Neden:** v0.4.0'da ikili indeksler 50–150 ms'de yüklense de 100.000 satırın SQLite'tan tek tek Python sözlüklerine dönüştürülmesi ve `mmap` modunda tüm vektör normlarının açılışta hevesle hesaplanması toplam açılışı 533–941 ms'ye çıkarıyordu.
+- **Nasıl Çözüldü?**
+  1. SQLite doğruluk kaynağının yanında epoch + CRC32 doğrulamalı ikili sütunsal önbellek (**`.items.mvdbcol`**) eklendi (herhangi bir bozulma veya çökme sonrası WAL replay durumunda şeffaf biçimde SQLite'a düşer).
+  2. Ham tuple SQLite okuyucu + opsiyonel **`orjson`** hızlandırması (`pip install ".[fast]"`).
+  3. **`MetadataIndex`, `BM25Index`, `SparseVectorIndex` ve `mmap` normları tembel (lazy)** hale getirildi — ilk filtreli/metin sorgusu gelene kadar açılışta sıfır gereksiz CPU ve **0.00 MB** vektör RAM harcar.
+  4. `use_mmap=True` ve `keep_raw_vectors=False` ayarları koleksiyon metaverisinde kalıcılaştırıldı.
+- **Ölçülen Sonuç (100K × 128D):**
+  - `DiskIndex`: **532.8 ms → 125.8 ms (4.23x hızlanma**, soğuk inşaya göre **22.2x**, `0.00 MB` vektör RAM).
+  - `IVF-PQ (keep_raw=F)`: **542.0 ms → 198.9 ms (2.72x hızlanma**, soğuk inşaya göre **65.8x**, `0.00 MB` vektör RAM).
+  - `IVF`: **781.3 ms → 486.7 ms (1.61x hızlanma)**.
+  - `MMap + 100K Zengin Metadata (3 alan)`: **~880 ms → 328.7 ms (2.68x hızlanma**, `0.00 MB` vektör RAM).
+
+### 2. Sorun #2: Saf NumPy `IVF-PQ` Sorgu Hızı
+- **Kök Neden:** v0.4.0'da her sorguda ziyaret edilen her küme için ayrı `np.einsum` mesafe tablosu (LUT) oluşturuluyor ve 16 alt-vektör için Python döngüsünde `+=` toplama yapılıyordu (`3.446 ms`, `255.1 QPS`).
+- **Nasıl Çözüldü?**
+  1. Küme-merkezli artık terimi $P[c, m, k] = \|C_{m,k}\|_2^2 + 2(c_{c,m} \cdot C_{m,k})$ eğitim ve yükleme anında tek seferlik ön-hesaplandı (`_precomp_flat_lut`).
+  2. Sorgu başına yalnızca **1 kez** batched `np.matmul` (`-2 q · C`) hesaplanarak `np.einsum` Python yükü tamamen kaldırıldı.
+  3. Küme içi kodlar bellek içinde ön-kaydırmalı `uint16` olarak tutularak 16 Python döngüsü yerine **tek-atış `np.take(lut_f, codes_t).sum(axis=0)`** ile hızlandırıldı (diskte hâlâ kompakt `uint8` saklanır).
+- **Ölçülen Sonuç (100K × 128D, `C=128, np=8, M=16`):**
+  - **P50: 3.446 ms → 2.267 ms** · **P95: 6.277 ms → 3.776 ms** · **QPS: 255.1 → 412.2 (+%61.6)** · **Recall@10: 0.270** *(FAISS `IndexIVFPQ`'nun `0.258` değerinin üzerinde, toplam RAM 5.62 MB = -%88.7 RAM)*.
+
+### 3. Sorun #3: Tekil Kalıcı Silme Gecikmesi (181.9 ms) ve Çökme/Yedekleme Güvenilirliği
+- **Kök Neden:** v0.3.0'da tek bir ID silindiğinde bile tüm `.mvdbvec` dosyası ve SQLite tablosu sıfırdan yeniden yazılıyordu (`181.9 ms`, 100K'da >1.8 saniye).
+- **Nasıl Çözüldü?**
+  1. **İkili CRC32 `WriteAheadLog` (`microvectordb/storage/wal.py`):** 21-byte başlıklı (`MWAL` + LSN + OpType + CRC32), kalıcı dosya tutamaçlı WAL eklendi. Yarım kalan yazmalar (torn writes) açılışta CRC32 ile tespit edilip temizce budanır ve uygulanmamış silmeler SQLite'a geri oynatılır (`replay()`). Varsayılan `wal_sync="normal"` (süreç çökmesine dayanıklı OS flush); elektrik kesintisi düzeyinde katı dayanıklılık için `index_params={"wal_sync": "full"}` (`os.fsync()`) seçilebilir.
+  2. **`<1 ms` Bitmask Tombstone Silme + Compaction:** `delete()` yalnızca silinen slotları bellek bitmask'inde işaretler, WAL'a yazar ve SQLite'tan tek atomik sorguyla siler; indeks epoch'u bozulmadan korunur. Tombstone oranı eşiği aştığında (varsayılan ≥%25 ve ≥64 kayıt) otomatik veya istendiğinde `collection.compact()` ile fiziksel sıkıştırma yapılır.
+  3. **SHA-256 Doğrulamalı Snapshot / Restore:** `db.create_snapshot(dir)` tutarlı SQLite online backup + tüm ikili/indeks dosyalarını SHA-256 manifestiyle paketler; `MicroVectorDB.restore_snapshot(src, dst)` tek bir bit bozulsa bile `DataCorruptionError` fırlatarak engeller.
+- **Ölçülen Sonuç:**
+  - 10K × 128D Tekil Kalıcı Silme (`wal_sync="normal"`): **181.9 ms → 0.403 ms (451.4x hızlanma!)**
+  - 10K × 128D Tekil Kalıcı Silme (`wal_sync="full"` fsync): **181.9 ms → 1.967 ms (92.5x hızlanma!)**
+  - 100K × 128D Tekil Kalıcı Silme (`wal_sync="normal"`): **0.382 ms** *(O(1) sabit gecikme!)*
+  - 10K × 128D SHA-256 Snapshot Oluştur / Geri Yükle: **203.1 ms / 63.5 ms**.
+
+---
+
+## 📊 Doğrulanmış Performans Sonuçları (v0.5.0)
 
 *Ölçüm ortamı: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS 0.3.27), FAISS 1.13.2. Tüm ham veriler için [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) dosyasına bakın.*
 
-### v0.2.0 → v0.4.0 İyileştirme Özeti
+### v0.2.0 → v0.5.0 Evrim Özeti
 
-| Senaryo | v0.2.0 | v0.4.0 | İyileşme |
+| Senaryo | Eski (v0.2 / v0.3 / v0.4) | v0.5.0 | İyileşme |
 |---|---:|---:|---:|
-| **100K×128D %10 Filtreli Kosinüs (Flat / HNSW+Optimizer)** | 59.32 ms (15.9 QPS) | **2.47 ms (Flat) / 0.48 ms (HNSW)** | **24.0x / 123.8x hızlı** |
-| **100K×128D Out-of-Core `DiskIndex` (MMap, Recall=1.000)** | Yoktu | **1.23 ms (684 QPS), 2.35 MB RAM** | **%95.3 az RAM** |
-| **50K×768D Flat Öklid (P50)** | 116.30 ms (8.6 QPS) | **7.99 ms (110.8 QPS)** | **14.6x hızlı** |
-| **50K×768D Flat Kosinüs RAM** | +297.4 MB | **146.9 MB** | **%50.6 az RAM** |
-| **100K×128D İndeks Açılış Süresi (HNSW / IVF-PQ)** | Her açılışta inşa (9.2s / 13.1s) | **941 ms / 542 ms (diskten)** | **9.8x / 24.1x hızlı** |
-| **100K×128D `ScalarQuantizer` (Recall@10 / P50)** | 0.630 / 35.08 ms | **0.980 / 16.89 ms** | **+35 puan Recall & 2.1x hızlı** |
-| **10K×128D Artımlı Kalıcı Yazma (20×500)** | 1.95 s (5,134 v/s) | **0.64 s (15,628 v/s)** | **3.0x hızlı** |
+| **10K×128D Tekil Kalıcı Silme (WAL + Tombstone)** | 181.90 ms *(v0.3)* | **0.403 ms** *(100K: **0.382 ms**)* | **451.4x hızlı** |
+| **100K×128D %10 Filtreli Kosinüs (Flat / HNSW+Opt)** | 59.32 ms *(v0.2)* | **2.47 ms / 0.48 ms** | **24.0x / 123.8x hızlı** |
+| **100K×128D `DiskIndex` Açılış / Arama (Recall=1.0)** | 2,791 ms inşa / 532.8 ms *(v0.4)* | **125.8 ms açılış / 1.23 ms (684 QPS)** | **22.2x / 4.23x, %95.3 az RAM** |
+| **100K×128D `IVF-PQ` Açılış / Arama (Saf NumPy)** | 542 ms / 3.45 ms *(v0.4)* | **198.9 ms / 2.27 ms (412 QPS)** | **2.72x açılış / +%61.6 QPS** |
+| **10K Doküman Hibrit Arama (Dense + BM25, RRF)** | Yoktu | **0.936 ms (1,033 QPS), Hit@10=1.000** | **<1 ms Hibrit RAG** |
+| **50K×768D Flat Öklid (P50) & Kosinüs RAM** | 116.3 ms / +297.4 MB *(v0.2)* | **7.99 ms / 146.9 MB** | **14.6x hızlı / -%50.6 RAM** |
 
-### 100K × 128D Kümelemeli Veri: MicroVectorDB v0.4.0 vs FAISS 1.13.2
+### 100K × 128D Kümelemeli Veri: MicroVectorDB v0.5.0 vs FAISS 1.13.2
 
 | Sistem & İndeks | P50 (ms) | QPS | Recall@10 | RAM |
 |---|---:|---:|---:|---:|
@@ -60,8 +101,18 @@
 | MicroVectorDB HNSW (`M=16, efS=64`) | **0.28** | **3,463.3** | **0.975** | 49.6 MB |
 | MicroVectorDB HNSW (`M=16, efS=128`) | **0.41** | **2,377.3** | **0.995** | 49.6 MB |
 | FAISS `IndexHNSWFlat` (`M=16, efS=64`) | 0.20 | 4,823.4 | 0.978 | 48.8 MB |
-| MicroVectorDB `IVF-PQ` (`C=128, np=8, M=16`) | 3.45 | 255.1 | **0.270** | **2.48 MB** |
-| FAISS `IndexIVFPQ` (`nlist=128, np=8, M=16`) | 0.58 | 1,787.9 | 0.258 | 2.29 MB |
+| MicroVectorDB v0.5 `IVF-PQ` (Precomputed LUT, `M=16`) | **2.27** | **412.2** | **0.270** | **5.62 MB** |
+| FAISS `IndexIVFPQ` (`nlist=128, np=8, M=16`, C++ SIMD) | 0.64 | 1,625.4 | 0.258 | 2.29 MB |
+
+### 10.000 Dokümanlık Kurumsal Külliyat: Dense vs BM25 vs Hibrit (128D, HNSW)
+
+| Arama Modu | P50 (ms) | QPS | Hit@10 (Recall@10) |
+|---|---:|---:|---:|
+| Dense-Only (HNSW) | **0.299** | 3,127.2 | 0.530 |
+| BM25-Only (Vektörize NumPy Okapi BM25) | **0.476** | 1,982.0 | 0.500 |
+| Sparse-Vector-Only (Ters İndeks) | **0.151** | 7,268.8 | 0.550 |
+| **Hibrit (Dense + BM25, RRF)** | **0.936** | **1,033.4** | **1.000 (%100!)** |
+| **Hibrit (Dense + BM25, Weighted Min-Max)** | **1.110** | **867.0** | **1.000 (%100!)** |
 
 ---
 
@@ -74,21 +125,27 @@ pip install .
 # Opsiyonel HNSW desteği ile:
 pip install ".[hnsw]"
 
+# Opsiyonel hızlı orjson metadata yükleyici ile:
+pip install ".[fast]"
+
+# Tüm performans eklentileri (hnswlib + orjson):
+pip install ".[all]"
+
 # Geliştirme ve benchmark araçları ile:
-pip install -e ".[hnsw,dev,bench]"
+pip install -e ".[all,dev,bench]"
 ```
 
 ---
 
 ## ⚡ Hızlı Başlangıç
 
-### Yeni Birleşik API (`MicroVectorDB` + `search()`)
+### 1. Hibrit Arama (Dense + BM25 + RRF) ve RAG Pipeline
 
 ```python
-from microvectordb import MicroVectorDB
+from microvectordb import MicroVectorDB, chunk_text
 
-with MicroVectorDB("./database") as db:
-    collection = db.get_or_create_collection(
+with MicroVectorDB("./rag_db") as db:
+    coll = db.get_or_create_collection(
         name="knowledge_base",
         dimension=4,
         metric="cosine",
@@ -96,43 +153,76 @@ with MicroVectorDB("./database") as db:
         quantization="none",   # "none", "float16", "int8", "binary", "pq"
     )
 
-    collection.add(
-        ids=["1", "2", "3"],
-        vectors=[
-            [0.95, 0.10, 0.05, 0.02],
-            [0.10, 0.92, 0.20, 0.05],
-            [0.85, 0.15, 0.10, 0.01],
+    # Dokümanları otomatik _doc_id / _parent_id / _chunk_index ile ekle
+    coll.add_documents(
+        documents=[
+            "İstanbul veri merkezi HNSW vektör veritabanı kurulum rehberi.",
+            "Sunucu bağlantı hatası ERR-9042 için WAL kurtarma ve checkpoint prosedürü.",
+            "Yedekleme sonrası SHA-256 doğrulamalı snapshot geri yükleme adımları.",
         ],
-        documents=["RAG mimarisi", "Veritabanı güvenliği", "AI Agent hafızası"],
-        metadata=[
-            {"category": "AI", "year": 2025, "tags": ["rag", "llm"]},
-            {"category": "Security", "year": 2024, "tags": ["auth"]},
-            {"category": "AI", "year": 2026, "tags": ["agent", "rag"]},
+        embeddings=[
+            [0.95, 0.10, 0.05, 0.00],
+            [0.45, 0.88, 0.05, 0.00],
+            [0.10, 0.15, 0.96, 0.00],
         ],
+        doc_ids=["ops_manual", "ops_manual", "ops_manual"],
+        metadatas=[{"category": "ops", "year": 2026}] * 3,
     )
 
-    # Query Optimizer yürütme planını incele:
-    plan = collection.explain(n_results=5, where={"category": "AI"})
-    print("Seçilen Plan:", plan.execution_path, "|", plan.reason)
-
-    results = collection.search(
-        query_vector=[0.90, 0.12, 0.06, 0.02],
-        limit=5,
-        filter={
-            "$and": [
-                {"category": "AI"},
-                {"year": {"$gte": 2025}},
-                {"tags": {"$contains": "rag"}},
-            ]
-        },
-        score_threshold=0.70,
+    # Dense + Okapi BM25 Hibrit Arama (RRF füzyon + tekilleştirme + gruplama)
+    hits = coll.hybrid_search(
+        query_vector=[0.80, 0.50, 0.05, 0.00],
+        query_text="ERR-9042 WAL kurtarma",
+        limit=3,
+        alpha=0.5,
+        beta=0.5,
+        fusion="rrf",          # "rrf", "weighted", "z_score"
+        deduplicate=True,
+        group_by="_doc_id",
+        max_per_group=2,
+        filter={"year": {"$gte": 2025}},
     )
-
-    for item in results:
+    for item in hits:
         print(item.id, round(item.score, 4), item.document)
+
+    # Parent-Child Bağlam Penceresi (komşu parçaları otomatik birleştirir)
+    ctx = coll.retrieve_with_context(
+        query_vector=[0.45, 0.88, 0.05, 0.00],
+        query_text="ERR-9042",
+        limit=1,
+        window=1,
+    )
+    print("Birleştirilmiş Bağlam:", ctx[0]["context"])
 ```
 
-### Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
+### 2. Multi-Tenant İzolasyon, `<1 ms` Tombstone Silme ve SHA-256 Snapshot
+
+```python
+from microvectordb import MicroVectorDB
+
+with MicroVectorDB("./prod_db") as db:
+    db.get_or_create_collection("saas", dimension=4, metric="cosine")
+    acme = db.get_tenant_collection("saas", "acme_corp")
+    beta = db.get_tenant_collection("saas", "beta_ltd")
+
+    acme.add(ids=["a1", "a2"], vectors=[[1, 0, 0, 0], [0.9, 0.1, 0, 0]], documents=["ACME gizli", "ACME rapor"])
+    beta.add(ids=["b1"], vectors=[[1, 0, 0, 0]], documents=["Beta gizli"])
+
+    # Beta, ACME'nin verisini ne görebilir ne de silebilir:
+    assert beta.delete(ids=["a1"]) == 0
+
+    # <1 ms Tombstone silme (WAL korumalı) + isteğe bağlı fiziksel sıkıştırma
+    acme.delete(ids=["a2"])
+    db.get_collection("saas").compact()
+
+    # SHA-256 doğrulamalı tutarlı yedekleme (snapshot)
+    db.create_snapshot("./backups/snap_2026_11_21")
+
+# Bozulma tespitli geri yükleme (tek bit bile bozulsa DataCorruptionError fırlatır)
+MicroVectorDB.restore_snapshot("./backups/snap_2026_11_21", "./restored_db")
+```
+
+### 3. Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
 
 ```python
 import microvectordb
@@ -151,24 +241,26 @@ client.close()
 ```text
 MicroVectorDB/
 ├── microvectordb/
-│   ├── __init__.py             # Ana paket arayüzü (v0.4.0)
-│   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient
-│   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, indeks kalıcılığı)
+│   ├── __init__.py             # Ana paket arayüzü (v0.5.0)
+│   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient, Snapshot & Multi-Tenant
+│   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, Hybrid/RAG, Tombstone, WAL)
 │   ├── types.py                # QueryPlan, QueryResult, SearchResultItem ve özel hatalar
 │   ├── metrics/                # inv_norms Kosinüs, sq_norms Öklid, Dot, bloklu GEMM
-│   ├── storage/                # VectorBuffer, sürümlü .mvdbvec (CRC32+mmap), güvenli SQLite WAL
-│   ├── filtering/              # Ters metadata indeksi ($eq..$nin, $and/$or/$not, nested)
+│   ├── storage/                # VectorBuffer (lazy mmap), .mvdbvec, .items.mvdbcol, ikili WAL, SQLite + Snapshot
+│   ├── filtering/              # Tembel ters metadata indeksi ($eq..$nin, $and/$or/$not, nested)
 │   ├── quantization/           # Scalar (INT8), Float16, Binary (POPCNT), ProductQuantizer (PQ)
-│   ├── indexes/                # IVF, IVF-PQ, DiskIndex + DiskStreamingScanner, HNSW, QueryOptimizer
+│   ├── indexes/                # IVF, Precomputed IVF-PQ, DiskIndex + Streaming, HNSW, QueryOptimizer
+│   ├── search/                 # Vektörize Okapi BM25, SparseVectorIndex, RRF/Weighted Füzyon, RAG & Multi-Tenant
 │   ├── concurrency/            # Yazıcı-öncelikli RWLock
 │   ├── distance.py             # v0.2.0 uyumluluk cephesi -> metrics/
 │   └── ivf_index.py            # v0.2.0 uyumluluk cephesi -> indexes/ivf.py
 ├── benchmarks/
 │   ├── run_benchmarks.py       # Faz 1 çekirdek benchmark paketi
 │   ├── run_benchmarks_v04.py   # Faz 2 PQ / IVF-PQ / DiskIndex / Reload / Optimizer benchmarkı
+│   ├── run_benchmarks_v05.py   # Faz 3 Sorun #1/#2/#3 + Hibrit/BM25/WAL/Tombstone/Snapshot benchmarkı
 │   └── results/                # Kayıtlı JSON ve CSV ölçüm çıktıları
-├── tests/                      # 63/63 birim, bütünlük, kurtarma, eşzamanlılık ve Faz 2 testi
-├── examples/                   # Çalışan hızlı başlangıç, filtre, RAG ve hız örnekleri
+├── tests/                      # 75/75 birim, bütünlük, WAL kurtarma, hibrit/RAG ve regresyon testi
+├── examples/                   # 5 çalışan örnek (quickstart, filtre, RAG, benchmark, hibrit+WAL)
 ├── kernels_experimental/       # Deneysel AVX2 C/SIMD çekirdeği
 ├── ARCHITECTURE_AUDIT.md       # v0.2.0 derinlemesine mimari ve performans denetimi
 ├── BENCHMARK_REPORT.md         # Bilimsel benchmark raporu ve rakiplerle kıyas
@@ -181,8 +273,8 @@ MicroVectorDB/
 ## 🗺️ Dokümantasyon ve Yol Haritası
 
 - [`ARCHITECTURE_AUDIT.md`](ARCHITECTURE_AUDIT.md) — Mevcut mimari analizi, 10 performans darboğazı ve güvenlik denetimi
-- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM ve FAISS karşılaştırması
-- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 (Sparse/Hybrid/RRF/RAG) → Faz 4 (WAL/Tombstone/Snapshot) → Faz 5 (FastAPI Sunucu) → Faz 6 (1M SIFT/GloVe & SIMD)
+- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM, FAISS ve Hibrit RAG kıyasları
+- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 + WAL/Tombstone ✅ → Faz 4 (Async/Batch Executor/Background Compaction) → Faz 5 (FastAPI Üretim Sunucusu) → Faz 6 (1M SIFT/GloVe & Native SIMD)
 - [`CHANGELOG.md`](CHANGELOG.md) — Detaylı sürüm notları
 
 ---
@@ -190,12 +282,16 @@ MicroVectorDB/
 ## 🧪 Test ve Benchmark Çalıştırma
 
 ```bash
-# Tüm testler (63/63):
+# Tüm testler (75/75):
 python -m unittest discover -s tests -v
 
 # Bilimsel benchmark paketleri (JSON + CSV üretir):
 python benchmarks/run_benchmarks.py
 python benchmarks/run_benchmarks_v04.py
+python benchmarks/run_benchmarks_v05.py
+
+# Uçtan uca Hibrit RAG & Güvenilirlik demosu:
+python examples/05_hybrid_rag_and_reliability.py
 ```
 
 ---

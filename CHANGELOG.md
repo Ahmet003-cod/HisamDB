@@ -2,6 +2,35 @@
 
 Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [0.5.0] - 2026-11-21 (Faz 3 — Hibrit/BM25/Sparse Arama, RAG İlkelleri, WAL, `<1 ms` Tombstone Silme & Hızlı Açılış)
+
+### Çözülen 3 Kritik Performans & Güvenilirlik Sorunu
+- **Sorun #1 — 100K Hızlı Açılış (4.23x'e Kadar Hızlanma):**
+  - Epoch + CRC32 doğrulamalı sütunsal ikili önbellek (`.items.mvdbcol`), ham tuple SQLite yükleyici, opsiyonel `orjson` hızlandırıcısı (`pip install ".[fast]"`), tembel (lazy) `MetadataIndex` / `BM25Index` / `SparseVectorIndex` kurulumu ve `mmap` modunda tembel norm hesaplama (`VectorBuffer`) eklendi.
+  - `use_mmap=True` ve `keep_raw_vectors=False` ayarları koleksiyon metaverisinde kalıcı hale getirildi.
+  - 100K×128D açılış süresi: `DiskIndex` **532.8 ms → 125.8 ms (4.23x, 0.00 MB vektör RAM)**, `IVF-PQ (keep_raw=F)` **542.0 ms → 198.9 ms (2.72x, 0.00 MB vektör RAM)**, `IVF` **781.3 ms → 486.7 ms (1.61x)**.
+- **Sorun #2 — Ön-Hesaplanmış `IVF-PQ` + Tek-Atış `uint16` ADC (+%61.6 QPS):**
+  - `ProductQuantizer.compute_distance_table()` içindeki `np.einsum` yükü `np.matmul` ile değiştirildi.
+  - `IVFPQIndex` için $P[c, m, k] = \|C_{m,k}\|_2^2 + 2(c_{c,m}\cdot C_{m,k})$ küme-artık ön-hesaplama tablosu, sorgu başına tek batched `matmul` ve ön-kaydırmalı `uint16` tek-atış `np.take(...).sum(axis=0)` ADC motoru eklendi.
+  - 100K×128D `IVF-PQ`: **3.446 ms (255.1 QPS) → 2.267 ms (412.2 QPS)**, Recall@10 = **0.270** (FAISS `IndexIVFPQ`'nun `0.258` değerinin üzerinde).
+- **Sorun #3 — `<1 ms` Tombstone Silme (451x Hızlanma) + İkili WAL + SHA-256 Snapshot:**
+  - `WriteAheadLog` (`microvectordb/storage/wal.py`): 21-byte başlıklı (`MWAL`), LSN + OpType + CRC32 korumalı ikili WAL, kalıcı dosya tutamacı, elektrik/süreç kesintisi sonrası yarım çerçeve budaması (torn-write recovery), `replay()` ve `wal_sync="normal" | "full"` dayanıklılık seçenekleri.
+  - `Collection.delete()` artık tüm dosyayı yeniden yazmak yerine $O(\text{silinen})$ bitmask Tombstone işaretleme + WAL + tek atomik SQLite `DELETE` kullanır: 10K tekil silme **181.9 ms → 0.403 ms (451.4x hızlanma)**, 100K tekil silme **0.382 ms** (`wal_sync="full"` fsync ile **1.967 ms — 92.5x**).
+  - Otomatik (varsayılan ≥%25 ve ≥64 tombstone) ve manuel `collection.compact()` sıkıştırması.
+  - `db.create_snapshot(dir)` ve `MicroVectorDB.restore_snapshot(src, dst)`: Online SQLite backup + tüm ikili/indeks dosyaları + SHA-256 manifest doğrulaması ve bozulma/kurcalama tespiti (`DataCorruptionError`).
+
+### Eklenenler (Faz 3 — Gelişmiş Arama & RAG Motoru)
+- **Vektörize Okapi BM25 (`BM25Index`) & Türkçe/Unicode Tokenizer (`tokenize_text`):** `İ -> i`, `I -> ı` dönüşümlü tokenizer ve derlenmiş NumPy terim ağırlık dizileriyle 10K dokümanda **0.476 ms (1,982 QPS)** anahtar kelime araması (Python döngüsüne göre **28.3x hızlanma**).
+- **Seyrek Vektör Motoru (`SparseVectorIndex`):** `{token_id: weight}` (SPLADE / BGE-M3 / TF-IDF) kalıcı SQLite + ters indeks depolaması; 10K dokümanda **0.151 ms (7,269 QPS)**.
+- **Hibrit Arama (`collection.hybrid_search()`):** Dense + BM25 + Sparse 2-yollu ve 3-yollu arama; **Reciprocal Rank Fusion (`rrf`)**, **Min-Max (`weighted`)** ve **Z-Score (`z_score`)** füzyon yöntemleri, ayarlanabilir `alpha` / `beta` / `sparse_weight` ağırlıkları. 10K dokümanda **0.936 ms (1,033 QPS)** ve **Hit@10 = 1.000** (Dense-Only `0.530`, BM25-Only `0.500`).
+- **RAG İlkelleri (`microvectordb/search/rag.py` & `Collection`):**
+  - `chunk_text()` örtüşmeli doküman parçalayıcı ve `collection.add_documents()` (`_doc_id`, `_parent_id`, `_chunk_index`, `_tenant_id`).
+  - `collection.retrieve_with_context(window=1)`: Parent-Child komşu parça bağlam penceresi birleştirme.
+  - `collection.multi_vector_search()`: Çoklu sorgu vektörü için `rrf`, `max`, `mean` füzyonu.
+  - Harici Reranker kancası (`reranker=` — çekirdeği ML modellerine bağlamaz, kilit dışında çalışır), sonuç tekilleştirme (`deduplicate=True`) ve doküman gruplama (`group_by="_doc_id"`, `max_per_group`).
+  - **Multi-Tenant İzolasyon (`db.get_tenant_collection(name, tenant_id)` / `TenantCollection`):** Tüm ekleme, arama ve silme işlemlerinde katı kiracı yalıtımı.
+- Yeni uçtan uca örnek (`examples/05_hybrid_rag_and_reliability.py`), `benchmarks/run_benchmarks_v05.py` ve 12 yeni birim testi (toplam **75/75 test**).
+
 ## [0.4.0] - 2026-11-20 (Faz 2 — İleri İndeksleme, PQ/IVF-PQ, DiskIndex ve Query Optimizer)
 
 ### Eklenenler

@@ -228,8 +228,9 @@ class MetadataIndex:
         self._field_present: Dict[str, Set[int]] = defaultdict(set)
         # field -> canonical_elem_key -> set[row_idx] (liste üyeliği için $contains)
         self._list_index: Dict[str, Dict[Tuple[str, Any], Set[int]]] = defaultdict(lambda: defaultdict(set))
-        # metadata'sı None olan satırlar
+        # metadata'sı None olan satırlar ve tombstone (silinmiş) slotlar
         self._null_meta: Set[int] = set()
+        self._deleted_slots: Set[int] = set()
         # Önbellekler (yazma anında ilgili alan temizlenir)
         self._posting_cache: Dict[Tuple[str, Tuple[str, Any]], np.ndarray] = {}
         self._numeric_col_cache: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
@@ -317,24 +318,41 @@ class MetadataIndex:
         """Tek bir satırın metadata indeksini O(alan_sayısı) sürede günceller."""
         old_meta = self._metadatas[idx]
         self._deindex_row(idx, old_meta)
+        self._deleted_slots.discard(idx)
         self._metadatas[idx] = new_meta
         self._index_row(idx, new_meta)
         if new_meta is not None:
             for field, _ in _flatten_metadata(new_meta):
                 self._invalidate_field_caches(field)
 
-    def rebuild(self, metadatas: List[Optional[Metadata]]) -> None:
+    def remove(self, idx: int) -> None:
+        """Tek bir silinmiş (tombstone) slotu O(alan_sayısı) sürede indeksten çıkarır."""
+        if 0 <= idx < self._size:
+            old_meta = self._metadatas[idx]
+            self._deindex_row(idx, old_meta)
+            self._metadatas[idx] = None
+            self._null_meta.discard(idx)
+            self._deleted_slots.add(idx)
+
+    def rebuild(
+        self,
+        metadatas: List[Optional[Metadata]],
+        deleted_slots: Optional[Set[int]] = None,
+    ) -> None:
         """Silme/sıkıştırma sonrası indeksi sıfırdan kurar."""
         self._eq_index.clear()
         self._field_present.clear()
         self._list_index.clear()
         self._null_meta.clear()
+        self._deleted_slots = set(deleted_slots) if deleted_slots else set()
         self._posting_cache.clear()
         self._numeric_col_cache.clear()
-        self._metadatas = []
-        self._size = 0
-        if metadatas:
-            self.add_batch(metadatas)
+        self._metadatas = list(metadatas)
+        self._size = len(metadatas)
+        for idx, meta in enumerate(metadatas):
+            if idx in self._deleted_slots:
+                continue
+            self._index_row(idx, meta)
 
     def _get_numeric_column(self, field: str) -> Tuple[np.ndarray, np.ndarray]:
         """Bir sayısal alan için (values_f64, valid_mask) önbellekli sütun dizisi döndürür."""
@@ -375,17 +393,17 @@ class MetadataIndex:
     def _eval_to_set(self, where: Dict[str, Any]) -> Set[int]:
         """Filtreyi eşleşen satır indekslerinin kümesi (Set[int]) olarak değerlendirir."""
         if not where:
-            return set(range(self._size))
+            return set(range(self._size)) - self._deleted_slots if self._deleted_slots else set(range(self._size))
 
         all_non_null: Optional[Set[int]] = None
 
         def get_all_non_null() -> Set[int]:
             nonlocal all_non_null
             if all_non_null is None:
-                if not self._null_meta:
+                if not self._null_meta and not self._deleted_slots:
                     all_non_null = set(range(self._size))
                 else:
-                    all_non_null = set(range(self._size)) - self._null_meta
+                    all_non_null = set(range(self._size)) - self._null_meta - self._deleted_slots
             return all_non_null
 
         result: Optional[Set[int]] = None
@@ -397,7 +415,7 @@ class MetadataIndex:
                 if not isinstance(condition, list):
                     raise ValueError("'$and' operatörü liste bekler.")
                 if not condition:
-                    part = set(range(self._size))
+                    part = set(range(self._size)) - self._deleted_slots if self._deleted_slots else set(range(self._size))
                 else:
                     sub_sets = [self._eval_to_set(sub) for sub in condition]
                     sub_sets.sort(key=len)
@@ -515,7 +533,7 @@ class MetadataIndex:
                     if bool(target):
                         op_set = set(present)
                     else:
-                        op_set = set(range(self._size)) - present
+                        op_set = set(range(self._size)) - present - self._deleted_slots
                 elif op == "$contains":
                     eck = _canonical_key(target)
                     list_matches = set(self._list_index.get(field, {}).get(eck, ())) if eck is not None else set()
@@ -562,7 +580,9 @@ class MetadataIndex:
         kopyası yapan hızlı yol (fast path) kullanır.
         """
         if not where or self._size == 0:
-            return np.arange(self._size, dtype=np.int64)
+            if not self._deleted_slots:
+                return np.arange(self._size, dtype=np.int64)
+            return np.array([i for i in range(self._size) if i not in self._deleted_slots], dtype=np.int64)
 
         # HIZLI YOL 1: Tek alanlı basit eşitlik {"cat": "c0"} veya {"cat": {"$eq": "c0"}}
         if len(where) == 1:

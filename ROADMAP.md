@@ -53,19 +53,24 @@
 
 ---
 
-## Faz 3 — Gelişmiş Arama (Sparse, Hybrid) ve RAG Optimizasyonu (`v0.5.0`)
-**Durum:** Sıradaki Aşama
-- **Sparse Vector & BM25 Motoru:** Ters indeksli anahtar kelime ve sparse embedding (`{token_id: weight}`) araması.
-- **Hybrid Search:** Reciprocal Rank Fusion (RRF), Min-Max / Z-Score skor normalizasyonu ve ayarlanabilir ağırlıklı füzyon ($\alpha \cdot \text{Dense} + \beta \cdot \text{Sparse}$).
-- **RAG İlkelleri:** Doküman/chunk yaşam döngüsü, Parent-Child retrieval, doküman gruplama, sonuç tekilleştirme (deduplication), bağlam penceresi birleştirme, harici reranker kanca arayüzü (CrossEncoder/Cohere/API bağımsız), çoklu vektör (multi-vector) ve multi-tenant koleksiyon izolasyonu.
+## Faz 3 — Gelişmiş Arama (Sparse, Hybrid), RAG Optimizasyonu ve WAL/Tombstone (`v0.5.0`)
+**Durum:** ✅ Tamamlandı (`75/75` test, `benchmarks/results/benchmark_v0.5.0.json` doğrulandı)
+- **Vektörize Okapi BM25 & Sparse Vector Motoru:** Türkçe/Unicode uyumlu tokenizer (`İ -> i`, `I -> ı`), NumPy derlenmiş BM25 (**0.476 ms / 1,982 QPS**, 10K doküman) ve kalıcı `SparseVectorIndex` (**0.151 ms / 7,269 QPS**).
+- **Hybrid Search (`hybrid_search`):** 2-yollu ve 3-yollu (Dense + BM25 + Sparse) arama; Reciprocal Rank Fusion (`rrf`), `min_max` ve `z_score` normalizasyonlu ağırlıklı füzyon; 10K külliyatta **0.936 ms (1,033 QPS)** ve **Hit@10 = 1.000** (Dense-Only `0.530`, BM25-Only `0.500`).
+- **RAG İlkelleri & Multi-Tenant:** `chunk_text()`, `add_documents()`, `retrieve_with_context()` (Parent-Child bağlam penceresi), `multi_vector_search()`, doküman gruplama (`group_by`), tekilleştirme (`deduplicate`), çekirdekten bağımsız harici `reranker` arayüzü ve `TenantCollection` izolasyonu.
+- **Sorun #1, #2, #3 Çözümleri (Çekirdek Güvenilirlik & Hız):**
+  - `.items.mvdbcol` sütunsal önbellek + `orjson` + tembel indeks/normlarla 100K `DiskIndex` açılışı **532.8 ms → 125.8 ms (4.23x)**, `IVF-PQ` **542 ms → 198.9 ms (2.72x)**.
+  - Ön-hesaplanmış küme-merkezli `IVF-PQ` + `uint16` tek-atış ADC ile **3.45 ms → 2.27 ms (+%61.6 QPS)**.
+  - İkili CRC32 `WriteAheadLog` (torn-write recovery & crash replay), `<1 ms` Tombstone silme (**181.9 ms → 0.403 ms, 451x hızlanma**), otomatik/manuel `compact()` ve SHA-256 doğrulamalı `create_snapshot()` / `restore_snapshot()`.
 
 ---
 
-## Faz 4 — Üretim Güvenilirliği: WAL, Recovery, Snapshot ve Eşzamanlılık (`v0.6.0`)
-- **Write-Ahead Logging (WAL):** Sıra numaralı (LSN), CRC32 sağlama toplamlı ikili yazma günlüğü; beklenmedik kapanmada otomatik WAL replay ve kısmi yazma budaması.
-- **Checkpoint, Snapshot, Backup & Restore:** Atomik nokta-zaman anlık görüntüleri, sıkıştırılmış yedekleme ve doğrulamalı geri yükleme.
-- **Açık İşlem Garantileri:** Batch atomikliği ve hata anında eksiksiz bellek+disk geri alması (rollback); belgelenmiş izolasyon/dayanıklılık sözleşmesi (kanıtlanmamış ACID iddiası olmadan).
-- **Yüksek Eşzamanlılık:** Paralel batch sorgu yürütme, `asyncio` istemci sarmalayıcısı, arka plan indeks oluşturma/sıkıştırma (background compaction).
+## Faz 4 — İleri Eşzamanlılık, Async İstemci ve Arka Plan İşçileri (`v0.6.0`)
+**Durum:** Sıradaki Aşama *(WAL, Tombstone, Compaction ve SHA-256 Snapshot/Restore v0.5.0'a öne çekilerek tamamlanmıştır.)*
+- **Paralel Toplu Sorgu Yürütme (`BatchQueryExecutor`):** Büyük batch sorgularının çok çekirdekli (GIL-serbest NumPy/hnswlib) paralel dağıtımı.
+- **`asyncio` İstemci Sarmalayıcısı (`AsyncMicroVectorDB`):** FastAPI ve modern asenkron Python uygulamaları için bloklamayan async API.
+- **Arka Plan Sıkıştırma & İndeks İnşası (Background Compaction/Indexing):** Yazma/arama trafiğini bloklamadan arka planda tombstone sıkıştırma ve ANN indeks yeniden inşası.
+- **Açık Dayanıklılık & İşlem Sözleşmesi:** Batch atomikliği, `wal_sync="normal"|"full"` garanti matrisi ve stres/kaos kurtarma test paketi.
 
 ---
 

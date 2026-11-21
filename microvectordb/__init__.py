@@ -1,21 +1,8 @@
 """
 microvectordb
 =============
-Yüksek performanslı, düşük bellek tüketimli, güvenilir ve geliştirici dostu
-Python Vektör Veritabanı.
-
-Hızlı Başlangıç:
-----------------
->>> from microvectordb import MicroVectorDB
->>> with MicroVectorDB("./my_db") as db:
-...     collection = db.get_or_create_collection(name="articles", metric="cosine", index_type="hnsw")
-...     collection.add(
-...         ids=["id1", "id2"],
-...         vectors=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
-...         documents=["Yapay zeka makalesi", "Uzay bilimi"],
-...         metadata=[{"kategori": "ai"}, {"kategori": "uzay"}]
-...     )
-...     results = collection.search(query_vector=[0.1, 0.2, 0.3], limit=1, filter={"kategori": "ai"})
+Yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG destekli,
+WAL korumalı ve geliştirici dostu Python Vektör Veritabanı.
 """
 
 from microvectordb.client import (
@@ -42,7 +29,21 @@ from microvectordb.quantization import (
     ProductQuantizer,
     ScalarQuantizer,
 )
-from microvectordb.storage import StorageEngine, VectorBuffer
+from microvectordb.search import (
+    BM25Index,
+    SparseVector,
+    SparseVectorIndex,
+    TenantCollection,
+    apply_reranker,
+    chunk_text,
+    deduplicate_results,
+    fuse_rrf,
+    fuse_weighted,
+    group_results_by_field,
+    normalize_scores,
+    tokenize_text,
+)
+from microvectordb.storage import StorageEngine, VectorBuffer, WriteAheadLog
 from microvectordb.types import (
     CollectionAlreadyExistsError,
     CollectionNotFoundError,
@@ -61,13 +62,14 @@ from microvectordb.types import (
     VectorDBError,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "MicroVectorDB",
     "PersistentClient",
     "EphemeralClient",
     "BaseClient",
     "Collection",
+    "TenantCollection",
     "IVFIndex",
     "IVFPQIndex",
     "HNSWIndex",
@@ -79,9 +81,21 @@ __all__ = [
     "Float16Quantizer",
     "BinaryQuantizer",
     "ProductQuantizer",
+    "BM25Index",
+    "SparseVectorIndex",
+    "SparseVector",
+    "tokenize_text",
+    "normalize_scores",
+    "fuse_rrf",
+    "fuse_weighted",
+    "chunk_text",
+    "apply_reranker",
+    "deduplicate_results",
+    "group_results_by_field",
     "MetadataIndex",
     "StorageEngine",
     "VectorBuffer",
+    "WriteAheadLog",
     "RWLock",
     "QueryPlan",
     "QueryResult",
