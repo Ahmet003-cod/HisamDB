@@ -1,12 +1,12 @@
-# MicroVectorDB — Güvenilirlik, Dayanıklılık ve Eşzamanlılık Sözleşmesi (`RELIABILITY.md`)
+# HisamDB — Güvenilirlik, Dayanıklılık ve Eşzamanlılık Sözleşmesi (`RELIABILITY.md`)
 
-Bu doküman, MicroVectorDB `v0.6.0` sürümünün **gerçekte sağladığı** ve **sağlamadığı** veri bütünlüğü, çökme kurtarma ve eşzamanlılık garantilerini şeffaf biçimde tanımlar.
+Bu doküman, HisamDB `v0.6.0` sürümünün **gerçekte sağladığı** ve **sağlamadığı** veri bütünlüğü, çökme kurtarma ve eşzamanlılık garantilerini şeffaf biçimde tanımlar.
 
 ---
 
 ## 1. İşlem (Transaction) ve ACID Garanti Matrisi
 
-MicroVectorDB, **tek-süreçli (embedded / single-writer process), çok iş parçacıklı** bir vektör veritabanı olarak tasarlanmıştır. Aşağıdaki tablo her bir ACID özelliğinin gerçek kapsamını özetler:
+HisamDB, **tek-süreçli (embedded / single-writer process), çok iş parçacıklı** bir vektör veritabanı olarak tasarlanmıştır. Aşağıdaki tablo her bir ACID özelliğinin gerçek kapsamını özetler:
 
 | Özellik | Durum | Gerçek Garanti Düzeyi | Sınırlar (Garanti Edilmeyenler) |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Veritabanı yeniden açıldığında her koleksiyon için otomatik olarak:
   2. Ağır K-Means / PQ / HNSW graf eğitimi **tamamen kilit dışında** çalıştırılır (okuyucular kesintisiz hizmet verir).
   3. Mikrosaniyelik `write_lock` altında inşa sırasında gelen yeni vektör deltaları yeni indekse eklenir, tombstone'lar işlenir ve indeks atomik olarak takas edilir.
 - **Arka Plan Sıkıştırma (`compact_async()` ve `auto_compact_async=True`):** Tekrarlı sıkıştırma çağrıları tek görevde birleştirilir (coalescing). `index_params={"auto_compact_async": True}` etkinleştirildiğinde yoğun silmeler bile `<1 ms` içinde döner ve fiziksel sıkıştırma arka planda tamamlanır.
-- **Temiz Kapatma:** `client.close()` veya `async with AsyncMicroVectorDB(...)` çıkışı tüm arka plan görevlerini bekler, değişen indeksleri ve `.items.mvdbcol` önbelleğini kaydeder ve tüm `mmap`/WAL/SQLite/havuz tutamaçlarını serbest bırakır.
+- **Temiz Kapatma:** `client.close()` veya `async with AsyncHisamDB(...)` çıkışı tüm arka plan görevlerini bekler, değişen indeksleri ve `.items.mvdbcol` önbelleğini kaydeder ve tüm `mmap`/WAL/SQLite/havuz tutamaçlarını serbest bırakır.
 
 ---
 
@@ -56,5 +56,5 @@ Veritabanı yeniden açıldığında her koleksiyon için otomatik olarak:
 manifest = db.create_snapshot("./backups/snap_2026_11_21")
 
 # 2. Doğrulamalı geri yükleme (tek bit bile bozulsa DataCorruptionError fırlatır)
-MicroVectorDB.restore_snapshot("./backups/snap_2026_11_21", "./restored_db")
+HisamDB.restore_snapshot("./backups/snap_2026_11_21", "./restored_db")
 ```

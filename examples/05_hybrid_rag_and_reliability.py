@@ -11,8 +11,8 @@ MicroVectorDB v0.5.0 uçtan uca üretim örneği:
 import os
 import shutil
 import tempfile
-import microvectordb
-from microvectordb import MicroVectorDB, chunk_text
+import hisamdb
+from hisamdb import MicroVectorDB, chunk_text
 
 
 class KeywordBoostReranker:
@@ -35,7 +35,7 @@ def main() -> None:
     restored_path = os.path.join(tmp_root, "restored_db")
 
     try:
-        print(f"=== MicroVectorDB v{microvectordb.__version__} Hibrit RAG & Güvenilirlik Demosu ===\n")
+        print(f"=== MicroVectorDB v{hisamdb.__version__} Hibrit RAG & Güvenilirlik Demosu ===\n")
 
         with MicroVectorDB(db_path) as db:
             coll = db.create_collection("enterprise_kb", dimension=4, metric="cosine")

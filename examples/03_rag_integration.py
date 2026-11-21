@@ -1,20 +1,20 @@
 """
 03_rag_integration.py
 ---------------------
-microvectordb'nin gerçek bir RAG (Retrieval-Augmented Generation)
+hisamdb'nin gerçek bir RAG (Retrieval-Augmented Generation)
 projesinde ChromaDB veya FAISS yerine nasıl kullanılacağını gösteren uçtan uca örnek.
 
 Bu senaryoda:
 1. Bir SSS (FAQ) veya doküman listesi alınır.
 2. Bir embedding modeli (veya simüle edilmiş embedding fonksiyonu) ile vektörleştirilir.
-3. microvectordb içine kalıcı olarak kaydedilir.
+3. hisamdb içine kalıcı olarak kaydedilir.
 4. Kullanıcı soru sorduğunda en alakalı bağlam (context) çekilir ve LLM prompt'u hazırlanır.
 """
 
 import os
 import shutil
 import numpy as np
-import microvectordb
+import hisamdb
 
 # 1. Örnek RAG Bilgi Tabanı
 KNOWLEDGE_BASE = [
@@ -60,8 +60,8 @@ def main():
     if os.path.exists(db_path):
         shutil.rmtree(db_path)
 
-    print("=== 1. microvectordb Başlatılıyor ===")
-    client = microvectordb.PersistentClient(path=db_path)
+    print("=== 1. hisamdb Başlatılıyor ===")
+    client = hisamdb.PersistentClient(path=db_path)
     collection = client.get_or_create_collection(
         name="faq_knowledge_base",
         metric="cosine"
@@ -97,7 +97,7 @@ def main():
     # Kullanıcı sorusunun embedding'i
     query_embedding = simple_embed("İade süresi kaç gündür?")  # Semantik olarak eşleştiğini simüle ediyoruz
 
-    # 4. microvectordb ile En Alakalı Bağlamı Bul
+    # 4. hisamdb ile En Alakalı Bağlamı Bul
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=1
@@ -106,7 +106,7 @@ def main():
     retrieved_doc = results.documents[0][0]
     similarity = results.similarities[0][0]
 
-    print(f"\n[Retrieval] microvectordb en alakalı kaydı buldu (Benzerlik: %{similarity * 100:.2f}):")
+    print(f"\n[Retrieval] hisamdb en alakalı kaydı buldu (Benzerlik: %{similarity * 100:.2f}):")
     print(f"--- Çekilen Bilgi ---\n{retrieved_doc}\n---------------------")
 
     # 5. LLM Prompt Oluşturma

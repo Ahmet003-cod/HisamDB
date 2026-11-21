@@ -1,7 +1,7 @@
 """
 01_quickstart.py
 ----------------
-microvectordb için 5 dakikalık hızlı başlangıç rehberi.
+hisamdb için 5 dakikalık hızlı başlangıç rehberi.
 Bu örnekte:
 1. Kalıcı bir veritabanı (PersistentClient) oluşturulur.
 2. 'makaleler' adında bir koleksiyon oluşturulur (kosinüs benzerliği metriğiyle).
@@ -11,7 +11,7 @@ Bu örnekte:
 
 import os
 import shutil
-import microvectordb
+import hisamdb
 
 DB_PATH = "./demo_db"
 
@@ -19,10 +19,10 @@ DB_PATH = "./demo_db"
 if os.path.exists(DB_PATH):
     shutil.rmtree(DB_PATH)
 
-print("=== microvectordb Hızlı Başlangıç Demo ===")
+print("=== hisamdb Hızlı Başlangıç Demo ===")
 
 # 1. Kalıcı istemci oluştur (veriler DB_PATH klasörüne kaydedilir)
-client = microvectordb.PersistentClient(path=DB_PATH)
+client = hisamdb.PersistentClient(path=DB_PATH)
 print(f"[OK] İstemci başlatıldı: {client}")
 
 # 2. Koleksiyon oluştur (Örn: 4 boyutlu temsili embedding'ler)

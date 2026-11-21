@@ -20,8 +20,8 @@ import threading
 import unittest
 import numpy as np
 
-import microvectordb
-from microvectordb import (
+import hisamdb
+from hisamdb import (
     BinaryQuantizer,
     DataCorruptionError,
     DimensionMismatchError,

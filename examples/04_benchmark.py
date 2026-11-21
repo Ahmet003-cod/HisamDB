@@ -1,16 +1,16 @@
 """
 04_benchmark.py
 ---------------
-microvectordb performans ve hız testi (Benchmark).
+hisamdb performans ve hız testi (Benchmark).
 1. 10.000 adet 128 boyutlu vektör ekleme hızını ölçer.
 2. 1.000 adet sorgu çalıştırarak saniyedeki sorgu sayısını (QPS - Queries Per Second) hesaplar.
 """
 
 import time
 import numpy as np
-import microvectordb
+import hisamdb
 
-print("=== microvectordb Performans Benchmark Testi ===")
+print("=== hisamdb Performans Benchmark Testi ===")
 
 NUM_VECTORS = 10000
 DIMENSION = 128
@@ -30,7 +30,7 @@ vectors = np.random.randn(NUM_VECTORS, DIMENSION).astype(np.float32)
 ids = [f"vec_{i}" for i in range(NUM_VECTORS)]
 docs = [f"Örnek doküman içeriği {i}" for i in range(NUM_VECTORS)]
 
-client = microvectordb.EphemeralClient()
+client = hisamdb.EphemeralClient()
 coll = client.create_collection("benchmark_coll", dimension=DIMENSION, metric="cosine")
 
 # Ekleme testi

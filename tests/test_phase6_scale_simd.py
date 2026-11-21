@@ -11,8 +11,8 @@ import unittest
 
 import numpy as np
 
-import microvectordb
-from microvectordb import (
+import hisamdb
+from hisamdb import (
     BinaryQuantizer,
     IVFPQIndex,
     MicroVectorDB,
@@ -21,7 +21,7 @@ from microvectordb import (
     is_native_simd_available,
     set_native_simd_enabled,
 )
-from microvectordb.metrics.native_simd import (
+from hisamdb.metrics.native_simd import (
     binary_hamming_u64_native,
     int8_dot_f32_native,
     pq_adc_u16_native,
@@ -206,10 +206,13 @@ class TestHighDimensionalLLMCollections(unittest.TestCase):
         db2.close()
 
     def test_version_and_public_exports(self):
-        self.assertEqual(microvectordb.__version__, "1.0.0")
-        self.assertTrue(callable(microvectordb.is_native_simd_available))
-        self.assertTrue(callable(microvectordb.set_native_simd_enabled))
-        self.assertTrue(callable(microvectordb.native_simd_path))
+        self.assertEqual(hisamdb.__version__, "1.0.0")
+        self.assertIs(hisamdb.HisamDB, hisamdb.MicroVectorDB)
+        self.assertIs(hisamdb.AsyncHisamDB, hisamdb.AsyncMicroVectorDB)
+        self.assertIs(hisamdb.RemoteHisamDB, hisamdb.RemoteMicroVectorDB)
+        self.assertTrue(callable(hisamdb.is_native_simd_available))
+        self.assertTrue(callable(hisamdb.set_native_simd_enabled))
+        self.assertTrue(callable(hisamdb.native_simd_path))
 
 
 if __name__ == "__main__":

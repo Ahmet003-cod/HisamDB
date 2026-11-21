@@ -28,9 +28,9 @@ import uvicorn
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import microvectordb
-from microvectordb import RemoteMicroVectorDB, is_hnsw_available
-from microvectordb.api import APIKeyRegistry, ServerConfig, create_app
+import hisamdb
+from hisamdb import RemoteMicroVectorDB, is_hnsw_available
+from hisamdb.api import APIKeyRegistry, ServerConfig, create_app
 
 
 def make_clustered_data(n: int, d: int, n_topics: int = 64, n_queries: int = 256, seed: int = 42):
@@ -49,7 +49,7 @@ def main() -> None:
     tmp_dir = tempfile.mkdtemp(prefix="mvdb_bench_v07_")
 
     meta = {
-        "microvectordb_version": microvectordb.__version__,
+        "microvectordb_version": hisamdb.__version__,
         "python": platform.python_version(),
         "os": platform.platform(),
         "cpu_logical_cores": os.cpu_count(),

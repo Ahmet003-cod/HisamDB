@@ -1,11 +1,11 @@
 # Changelog
 
-Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
+Bu dosya HisamDB projesindeki tüm önemli değişiklikleri belgeler.
 
 ## [1.0.0] - 2026-11-21 (Faz 6 — 1M Ölçek & 1536D LLM Benchmarkları, Opsiyonel Rust Native SIMD, Görsel Grafikler ve Herkes İçin Anlaşılır Dokümantasyon)
 
 ### Eklenenler
-- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD Çekirdeği (`kernels_experimental/mvdb_simd.rs` & `microvectordb/metrics/native_simd.py`):**
+- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD Çekirdeği (`kernels_experimental/hisam_simd.rs` & `hisamdb/metrics/native_simd.py`):**
   - Harici crate gerektirmeden tek `rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native` komutuyla derlenir ve `ctypes` üzerinden otomatik algılanır; derlenmemiş ortamlarda sıfır hata ile %100 saf NumPy yoluna döner.
   - `ProductQuantizer`, `IVFPQIndex`, `ScalarQuantizer` (INT8) ve `BinaryQuantizer` (64-bit donanım `POPCNT`) içine şeffaf biçimde entegre edildi; `is_native_simd_available()`, `set_native_simd_enabled()`, `native_simd_path()` kamusal API'leri eklendi.
   - **Ölçülen Gerçek Kazanımlar (Saf NumPy → Rust Native SIMD):**
@@ -28,17 +28,17 @@ Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 ## [0.7.0] - 2026-11-21 (Faz 5 — Üretim FastAPI REST Sunucusu, Güvenlik, Prometheus `/metrics`, Python SDK & Docker)
 
 ### Eklenenler
-- **Üretim FastAPI REST Sunucusu (`microvectordb/api/server.py`, `microvectordb-server` CLI):**
-  - Lifespan yönetimli `AsyncMicroVectorDB` çekirdeği, opsiyonel `pip install ".[server]"` eklentisi (çekirdek hâlâ yalnızca `numpy>=1.20`!).
+- **Üretim FastAPI REST Sunucusu (`hisamdb/api/server.py`, `hisamdb-server` CLI):**
+  - Lifespan yönetimli `AsyncHisamDB` çekirdeği, opsiyonel `pip install ".[server]"` eklentisi (çekirdek hâlâ yalnızca `numpy>=1.20`!).
   - Tam `/v1/collections` REST API: koleksiyon yönetimi, `add`, `documents` (RAG), `upsert`, `get`, `delete`, `search`, `batch_search`, `sparse_search`, `hybrid_search`, `batch_hybrid_search`, `retrieve_context`, `explain`, `compact`, `rebuild`, `checkpoint` ve path-traversal korumalı `/v1/admin/snapshot`.
   - Canlı Uvicorn TCP loopback benchmarkı (Bearer Auth etkin, 50K HNSW): tekil `POST /search` **3.94 ms (233 QPS)**, `POST /batch_search(64)` **1,610 QPS**, `POST /hybrid_search` (10K) **5.68 ms**, `POST /delete` **5.54 ms**.
-- **Güvenlik & Hız Sınırlama (`microvectordb/api/security.py`, `schemas.py`):**
+- **Güvenlik & Hız Sınırlama (`hisamdb/api/security.py`, `schemas.py`):**
   - SHA-256 hash'lenmiş API anahtarları (`sha256:<hex>` desteği + sabit zamanlı `hmac.compare_digest`), kapsam (`read`/`write`/`admin`) ve sunucu tarafı **katı Multi-Tenant anahtar yalıtımı** (çapraz kiracı okuma/silme/upsert saldırılarına karşı korumalı).
   - Kimlik/IP bazlı thread-safe **`TokenBucketRateLimiter`** (`HTTP 429` + `Retry-After` / `X-RateLimit-Remaining`).
   - Katı Pydantic v2 şema doğrulaması (sonlu float / `NaN`/`Inf` reddi, `max_batch_size` `413` koruması) ve Bearer/anahtar maskeleyen **`SanitizingLogFilter`**.
-- **Gözlemlenebilirlik (`microvectordb/api/metrics.py`):**
-  - `/health`, `/ready` probları ve sıfır bağımlılıklı Prometheus metin dışa aktarımı **`/metrics`** (`mvdb_http_requests_total`, gecikme histogramı, `mvdb_rate_limited_total`, `mvdb_auth_failures_total`, `mvdb_vectors_total`, `mvdb_tombstones_total`, `mvdb_vector_ram_bytes`).
-- **Sıfır-Bağımlılıklı Python HTTP SDK (`RemoteMicroVectorDB`, `RemoteCollection`):**
+- **Gözlemlenebilirlik (`hisamdb/api/metrics.py`):**
+  - `/health`, `/ready` probları ve sıfır bağımlılıklı Prometheus metin dışa aktarımı **`/metrics`** (`hisamdb_http_requests_total`, gecikme histogramı, `hisamdb_rate_limited_total`, `hisamdb_auth_failures_total`, `hisamdb_vectors_total`, `hisamdb_tombstones_total`, `hisamdb_vector_ram_bytes`).
+- **Sıfır-Bağımlılıklı Python HTTP SDK (`RemoteHisamDB`, `RemoteCollection`):**
   - Standart kütüphane `http.client` tabanlı thread-safe **HTTP/1.1 Keep-Alive** istemcisi (`requests`/`httpx` gerekmez).
 - **Konteyner & Dokümantasyon:** Çok aşamalı non-root `Dockerfile` (dahili `HEALTHCHECK`), `docker-compose.yml`, `.dockerignore`, [`docs/API_SERVER.md`](docs/API_SERVER.md), `examples/07_rest_server_and_sdk.py`, `benchmarks/run_benchmarks_v07.py` ve 5 yeni kapsamlı REST/güvenlik/canlı-sunucu testi (toplam **86/86 test**).
 
@@ -48,8 +48,8 @@ Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 - **Paralel Toplu Sorgu Yürütücüsü (`BatchQueryExecutor`, `batch_search`, `batch_hybrid_search`):**
   - Paylaşımlı `filter` veya sorgu başına ayrı `filters` listesiyle paralel toplu arama; `100K × 128D` HNSW üzerinde `workers=8` ile **18,764.8 QPS (2.45x hızlanma)**.
   - Ölçümlenmiş Python GIL / OpenBLAS sınırlarına göre otomatik işçi yönlendirmesi (HNSW ve harici reranker için çok çekirdekli havuz; kısa NumPy/OpenBLAS çekirdeklerinde sıfır çekişmeli tek-işçi yolu, `max_workers` ile geçersiz kılınabilir).
-- **Standart `asyncio` İstemcisi (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):**
-  - Sıfır ek bağımlılıkla `async with AsyncMicroVectorDB(...) as db:` ve `asyncio.gather()` desteği (`100K HNSW` `gather(256)` → **3,286.8 QPS**).
+- **Standart `asyncio` İstemcisi (`AsyncHisamDB`, `AsyncCollection`, `AsyncTenantCollection`):**
+  - Sıfır ek bağımlılıkla `async with AsyncHisamDB(...) as db:` ve `asyncio.gather()` desteği (`100K HNSW` `gather(256)` → **3,286.8 QPS**).
 - **Bloklamayan Arka Plan Bakım Yöneticisi (`BackgroundTaskManager`):**
   - `collection.rebuild_index_async()`: Snapshot-and-Swap mimarisi ile ağır K-Means/PQ/HNSW eğitimini **tamamen kilit dışında** çalıştırır ve inşa sırasında gelen yeni vektör deltalarını otomatik birleştirir (`50K IVF` 1.05s inşa süresince **2,212 canlı okuma**, okuyucu **P50 = 0.363 ms, Max = 3.99 ms — 262x düşük azami gecikme**).
   - `collection.compact_async()` (görev birleştirmeli / coalesced) ve `index_params={"auto_compact_async": True}` (yoğun silme eşiğinde çağıran gecikmesi **49.89 ms → 0.821 ms, 60.8x düşük kuyruk gecikmesi**).
@@ -74,16 +74,16 @@ Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
   - `IVFPQIndex` için $P[c, m, k] = \|C_{m,k}\|_2^2 + 2(c_{c,m}\cdot C_{m,k})$ küme-artık ön-hesaplama tablosu, sorgu başına tek batched `matmul` ve ön-kaydırmalı `uint16` tek-atış `np.take(...).sum(axis=0)` ADC motoru eklendi.
   - 100K×128D `IVF-PQ`: **3.446 ms (255.1 QPS) → 2.267 ms (412.2 QPS)**, Recall@10 = **0.270** (FAISS `IndexIVFPQ`'nun `0.258` değerinin üzerinde).
 - **Sorun #3 — `<1 ms` Tombstone Silme (451x Hızlanma) + İkili WAL + SHA-256 Snapshot:**
-  - `WriteAheadLog` (`microvectordb/storage/wal.py`): 21-byte başlıklı (`MWAL`), LSN + OpType + CRC32 korumalı ikili WAL, kalıcı dosya tutamacı, elektrik/süreç kesintisi sonrası yarım çerçeve budaması (torn-write recovery), `replay()` ve `wal_sync="normal" | "full"` dayanıklılık seçenekleri.
+  - `WriteAheadLog` (`hisamdb/storage/wal.py`): 21-byte başlıklı (`MWAL`), LSN + OpType + CRC32 korumalı ikili WAL, kalıcı dosya tutamacı, elektrik/süreç kesintisi sonrası yarım çerçeve budaması (torn-write recovery), `replay()` ve `wal_sync="normal" | "full"` dayanıklılık seçenekleri.
   - `Collection.delete()` artık tüm dosyayı yeniden yazmak yerine $O(\text{silinen})$ bitmask Tombstone işaretleme + WAL + tek atomik SQLite `DELETE` kullanır: 10K tekil silme **181.9 ms → 0.403 ms (451.4x hızlanma)**, 100K tekil silme **0.382 ms** (`wal_sync="full"` fsync ile **1.967 ms — 92.5x**).
   - Otomatik (varsayılan ≥%25 ve ≥64 tombstone) ve manuel `collection.compact()` sıkıştırması.
-  - `db.create_snapshot(dir)` ve `MicroVectorDB.restore_snapshot(src, dst)`: Online SQLite backup + tüm ikili/indeks dosyaları + SHA-256 manifest doğrulaması ve bozulma/kurcalama tespiti (`DataCorruptionError`).
+  - `db.create_snapshot(dir)` ve `HisamDB.restore_snapshot(src, dst)`: Online SQLite backup + tüm ikili/indeks dosyaları + SHA-256 manifest doğrulaması ve bozulma/kurcalama tespiti (`DataCorruptionError`).
 
 ### Eklenenler (Faz 3 — Gelişmiş Arama & RAG Motoru)
 - **Vektörize Okapi BM25 (`BM25Index`) & Türkçe/Unicode Tokenizer (`tokenize_text`):** `İ -> i`, `I -> ı` dönüşümlü tokenizer ve derlenmiş NumPy terim ağırlık dizileriyle 10K dokümanda **0.476 ms (1,982 QPS)** anahtar kelime araması (Python döngüsüne göre **28.3x hızlanma**).
 - **Seyrek Vektör Motoru (`SparseVectorIndex`):** `{token_id: weight}` (SPLADE / BGE-M3 / TF-IDF) kalıcı SQLite + ters indeks depolaması; 10K dokümanda **0.151 ms (7,269 QPS)**.
 - **Hibrit Arama (`collection.hybrid_search()`):** Dense + BM25 + Sparse 2-yollu ve 3-yollu arama; **Reciprocal Rank Fusion (`rrf`)**, **Min-Max (`weighted`)** ve **Z-Score (`z_score`)** füzyon yöntemleri, ayarlanabilir `alpha` / `beta` / `sparse_weight` ağırlıkları. 10K dokümanda **0.936 ms (1,033 QPS)** ve **Hit@10 = 1.000** (Dense-Only `0.530`, BM25-Only `0.500`).
-- **RAG İlkelleri (`microvectordb/search/rag.py` & `Collection`):**
+- **RAG İlkelleri (`hisamdb/search/rag.py` & `Collection`):**
   - `chunk_text()` örtüşmeli doküman parçalayıcı ve `collection.add_documents()` (`_doc_id`, `_parent_id`, `_chunk_index`, `_tenant_id`).
   - `collection.retrieve_with_context(window=1)`: Parent-Child komşu parça bağlam penceresi birleştirme.
   - `collection.multi_vector_search()`: Çoklu sorgu vektörü için `rrf`, `max`, `mean` füzyonu.
@@ -112,7 +112,7 @@ Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
 ### Eklenenler
 - **Modüler Paket Mimarisi:** `metrics/`, `storage/`, `filtering/`, `quantization/`, `indexes/`, `concurrency/` paketleri (tüm v0.2.0 import yolları geriye dönük uyumlu).
-- **Birleşik İstemci ve Ergonomik Arama:** `MicroVectorDB(path=...)`, `collection.search(...) -> List[SearchResultItem]`, `score_threshold`, `collection.stats()`, `collection.checkpoint()`, `client.close()` ve `with client:` context manager desteği.
+- **Birleşik İstemci ve Ergonomik Arama:** `HisamDB(path=...)`, `collection.search(...) -> List[SearchResultItem]`, `score_threshold`, `collection.stats()`, `collection.checkpoint()`, `client.close()` ve `with client:` context manager desteği.
 - **Ters Metadata İndeksi (`MetadataIndex`):** Eşitlik kovaları + önbellekli sayısal sütun dizileri; `$and`, `$or`, `$not`, `$exists`, `$contains` ve nokta-yollu iç içe (`"author.country"`) filtre desteği; 100K filtreli sorguda **24x hızlanma** (59.3 ms → 2.47 ms).
 - **Sürümlü İkili Depolama Formatı (`.mvdbvec`):** 64-byte hizalı başlık, CRC32 sağlama toplamı, atomik yazma (`fsync` + `os.replace`), $O(M)$ artımlı ekleme, gerçek `use_mmap=True` desteği, çökme kurtarma budaması ve eski v0.2.0 `.npy` dosyalarından otomatik göç.
 - **Koleksiyon İçi İndeks ve Kuantizasyon Entegrasyonu:** `index_type="flat" | "ivf" | "hnsw" | "auto"`, `quantization="none" | "float16" | "int8" | "binary"`, `storage_dtype="float32" | "float16"`, `keep_raw_vectors=True|False`.

@@ -20,7 +20,7 @@ import time
 import unittest
 import numpy as np
 
-from microvectordb import (
+from hisamdb import (
     AsyncMicroVectorDB,
     MicroVectorDB,
     is_hnsw_available,

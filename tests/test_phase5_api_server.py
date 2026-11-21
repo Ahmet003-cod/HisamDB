@@ -28,13 +28,13 @@ try:
 except ImportError:
     HAS_SERVER_DEPS = False
 
-from microvectordb import (
+from hisamdb import (
     CollectionAlreadyExistsError,
     CollectionNotFoundError,
     RemoteAPIError,
     RemoteMicroVectorDB,
 )
-from microvectordb.api.security import (
+from hisamdb.api.security import (
     APIKeyRegistry,
     SanitizingLogFilter,
     hash_api_key,
@@ -42,7 +42,7 @@ from microvectordb.api.security import (
 )
 
 if HAS_SERVER_DEPS:
-    from microvectordb.api.server import ServerConfig, create_app
+    from hisamdb.api.server import ServerConfig, create_app
 
 
 @unittest.skipUnless(HAS_SERVER_DEPS, "fastapi/uvicorn/httpx kurulu değil")
@@ -74,10 +74,10 @@ class TestPhase5APIServer(unittest.TestCase):
             r_m = client.get("/metrics")
             self.assertEqual(r_m.status_code, 200)
             body = r_m.text
-            self.assertIn("mvdb_http_requests_total", body)
-            self.assertIn("mvdb_http_request_duration_seconds_bucket", body)
-            self.assertIn('mvdb_vectors_total{collection="mtest"} 1', body)
-            self.assertIn("mvdb_collections_total 1", body)
+            self.assertIn("hisamdb_http_requests_total", body)
+            self.assertIn("hisamdb_http_request_duration_seconds_bucket", body)
+            self.assertIn('hisamdb_vectors_total{collection="mtest"} 1', body)
+            self.assertIn("hisamdb_collections_total 1", body)
 
     def test_full_rest_crud_search_hybrid_rag_and_maintenance(self):
         cfg = ServerConfig(
@@ -283,12 +283,12 @@ class TestPhase5APIServer(unittest.TestCase):
             self.assertEqual(client.delete("/v1/collections/saas", headers=h_beta).status_code, 403)
 
     def test_rate_limiting_validation_batch_limit_and_log_masking(self):
-        # Log maskeleme testi
-        self.assertEqual(mask_secret("mvdb_secret_123456"), "mvdb****3456")
+        # Log maskeleme testi (hem hisam_ hem uyumlu mvdb_ anahtarları)
+        self.assertEqual(mask_secret("hisam_secret_123456"), "hisa****3456")
         flt = SanitizingLogFilter()
-        rec = logging.LogRecord("test", logging.INFO, "", 0, "Auth failed for Bearer mvdb_secret_abc", (), None)
+        rec = logging.LogRecord("test", logging.INFO, "", 0, "Auth failed for Bearer hisam_secret_abc", (), None)
         flt.filter(rec)
-        self.assertNotIn("mvdb_secret_abc", rec.msg)
+        self.assertNotIn("hisam_secret_abc", rec.msg)
         self.assertIn("[REDACTED]", rec.msg)
 
         cfg = ServerConfig(
@@ -318,7 +318,7 @@ class TestPhase5APIServer(unittest.TestCase):
             # 3. Rate limit (burst=3 tükendiğinde 429 + Retry-After!)
             statuses = [client.get("/v1/collections").status_code for _ in range(5)]
             self.assertIn(429, statuses)
-            self.assertIn("mvdb_rate_limited_total", client.get("/metrics").text)
+            self.assertIn("hisamdb_rate_limited_total", client.get("/metrics").text)
 
     def test_live_uvicorn_server_with_remote_sdk(self):
         # Boş localhost portu bul ve canlı uvicorn sunucusu başlat
@@ -378,7 +378,7 @@ class TestPhase5APIServer(unittest.TestCase):
             self.assertEqual(coll.delete(ids=["1"]), 1)
             self.assertEqual(coll.compact()["reclaimed_slots"], 1)
             self.assertGreaterEqual(sdk.create_snapshot("sdk_snap")["files"], 2)
-            self.assertIn("mvdb_vectors_total", sdk.metrics())
+            self.assertIn("hisamdb_vectors_total", sdk.metrics())
             sdk.delete_collection("docs")
 
         # Yanlış anahtarla RemoteAPIError(401) fırlatmalı

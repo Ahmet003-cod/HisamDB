@@ -1,19 +1,19 @@
-# MicroVectorDB 🚀
+# HisamDB ⚔️
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/CHANGELOG.md)
-[![PyPI](https://img.shields.io/pypi/v/microvectordb.svg)](https://pypi.org/project/microvectordb/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/hisamdb.svg)](https://pypi.org/project/hisamdb/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
-[![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/requirements.txt)
-[![Tests: 90/90 Passing](https://img.shields.io/badge/tests-90%2F90%20passing-success.svg)](https://github.com/Ahmet003-cod/MicroVectorDB/tree/main/tests)
+[![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/requirements.txt)
+[![Tests: 90/90 Passing](https://img.shields.io/badge/tests-90%2F90%20passing-success.svg)](https://github.com/Ahmet003-cod/HisamDB/tree/main/tests)
 
-**MicroVectorDB**, yapay zekâ uygulamaları (RAG, anlamsal arama, sohbet botları, öneri sistemleri) için geliştirilmiş; **yüksek performanslı**, **ultra düşük bellek (RAM) tüketimli**, **hibrit arama (Vektör + Metin)** destekli, **çökme korumalı (WAL)** ve çekirdeğinde **yalnızca `numpy`** gerektiren açık kaynaklı bir Python Vektör Veritabanıdır.
+**HisamDB** *(**H**ybrid **I**ndexed **S**IMD **A**NN **M**emory **DB** — "Hisâm": keskin kılıç / cutting-edge)*, yapay zekâ uygulamaları (RAG, anlamsal arama, sohbet botları, öneri sistemleri) için geliştirilmiş; **yüksek performanslı**, **ultra düşük bellek (RAM) tüketimli**, **hibrit arama (Vektör + Metin)** destekli, **çökme korumalı (WAL)** ve çekirdeğinde **yalnızca `numpy`** gerektiren açık kaynaklı bir Python Vektör Veritabanıdır.
 
 Gömülü Python kütüphanesi olarak tek satırda başlayabilir, `asyncio` ile binlerce eşzamanlı sorgu çalıştırabilir veya yerleşik **FastAPI + Docker REST sunucusu** ile üretim ortamına çıkabilirsiniz.
 
-> **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
+> **Felsefe:** *Cutting-Edge Performance + Ultra-Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
-![MicroVectorDB v1.0.0 Katmanlı Sistem Mimarisi](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/architecture_overview.png)
+![HisamDB v1.0.0 Katmanlı Sistem Mimarisi](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/architecture_overview.png)
 
 ---
 
@@ -22,7 +22,7 @@ Gömülü Python kütüphanesi olarak tek satırda başlayabilir, `asyncio` ile 
 Vektör veritabanlarına yeni başlıyorsanız aşağıdaki kısa sözlük, bu README'deki tüm grafikleri ve ayarları **hiç ön bilgi gerektirmeden** anlamanızı sağlar:
 
 ### 1. Vektör (Embedding) Nedir?
-Bilgisayarlar *"kedi"* ile *"yavru kedi"* kelimelerinin anlamca yakın olduğunu doğrudan bilemez. Yapay zekâ modelleri (OpenAI, BGE, MiniLM vb.) her metni, resmi veya belgeyi örneğin **384, 768 veya 1536 sayıdan oluşan bir koordinata** (vektöre) çevirir. Tıpkı bir şehir haritasındaki GPS koordinatları gibi, **anlamı benzer cümlelerin koordinatları birbirine yakın** olur. MicroVectorDB bu milyonlarca koordinat içinde en yakınları milisaniyeler içinde bulur.
+Bilgisayarlar *"kedi"* ile *"yavru kedi"* kelimelerinin anlamca yakın olduğunu doğrudan bilemez. Yapay zekâ modelleri (OpenAI, BGE, MiniLM vb.) her metni, resmi veya belgeyi örneğin **384, 768 veya 1536 sayıdan oluşan bir koordinata** (vektöre) çevirir. Tıpkı bir şehir haritasındaki GPS koordinatları gibi, **anlamı benzer cümlelerin koordinatları birbirine yakın** olur. HisamDB bu milyonlarca koordinat içinde en yakınları milisaniyeler içinde bulur.
 
 ### 2. Benzerlik Metrikleri (`Cosine`, `Euclidean`, `Dot Product`) Ne Demek?
 İki vektörün ne kadar benzediğini ölçmenin 3 yolu vardır:
@@ -51,7 +51,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 - **Sparse Vektör:** SPLADE veya BGE-M3 gibi modern yapay zekâ modellerinin ürettiği ağırlıklı kelime vektörleridir (`{kelime_id: ağırlık}`).
 
 ### 6. RAG ve Parent-Child Bağlam Penceresi Nedir?
-**RAG (Retrieval-Augmented Generation)**, ChatGPT/Claude/Gemini gibi bir LLM'e cevap vermeden önce kendi belgelerinizden ilgili parçaları bulup vermektir. MicroVectorDB uzun PDF/Word dokümanlarını örtüşmeli parçalara (`chunk_text`) böler; arama bir cümleyi bulduğunda `retrieve_with_context(window=1)` ile o parçanın **bir önceki ve bir sonraki komşu parçalarını da** otomatik getirerek LLM'in bağlamı kaybetmesini önler.
+**RAG (Retrieval-Augmented Generation)**, ChatGPT/Claude/Gemini gibi bir LLM'e cevap vermeden önce kendi belgelerinizden ilgili parçaları bulup vermektir. HisamDB uzun PDF/Word dokümanlarını örtüşmeli parçalara (`chunk_text`) böler; arama bir cümleyi bulduğunda `retrieve_with_context(window=1)` ile o parçanın **bir önceki ve bir sonraki komşu parçalarını da** otomatik getirerek LLM'in bağlamı kaybetmesini önler.
 
 ### 7. Güvenilirlik: `WAL`, `Tombstone`, `Compaction` ve `SHA-256 Snapshot` Nedir?
 - **`WAL` (Write-Ahead Log):** Uçağın kara kutusu gibidir. Bir ekleme veya silme işlemi ana dosyalara işlenmeden önce CRC32 korumalı günlüğe yazılır; elektrik kesilse veya program çökse bile açılışta yarım kalan kayıtlar temizlenip veri kurtarılır.
@@ -62,7 +62,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 - **`Recall@10` / `Hit@10`:** Sistemin bulduğu ilk 10 sonucun, gerçekten en yakın olan 10 sonuçla ne kadar örtüştüğüdür (`1.00` = **%100 kusursuz**, `0.98` = 10 sonuçtan ortalama 9.8'i doğru).
 - **`P50 (Medyan)` ve `P95` (ms):** Sorguların yarısının tamamlandığı tipik süre (`P50`) ve en yavaş %5'lik dilimin sınırı (`P95`). **Düşük olan daha iyidir** (`1 ms` = saniyenin binde biri!).
 - **`QPS` (Queries Per Second):** Saniyede cevaplanan sorgu sayısıdır. **Yüksek olan daha iyidir.**
-- **`SIMD` (`AVX2` / `FMA` / `POPCNT`):** Modern işlemcilerin tek bir komutta 1 sayı yerine **8 sayıyı aynı anda** çarpıp toplayabilmesi (`AVX2`) veya 64 bit içindeki `1` sayısını tek saat çevriminde sayabilmesidir (`POPCNT`). MicroVectorDB'deki opsiyonel **Rust Native SIMD** çekirdeği tam olarak bu donanım gücünü kullanır.
+- **`SIMD` (`AVX2` / `FMA` / `POPCNT`):** Modern işlemcilerin tek bir komutta 1 sayı yerine **8 sayıyı aynı anda** çarpıp toplayabilmesi (`AVX2`) veya 64 bit içindeki `1` sayısını tek saat çevriminde sayabilmesidir (`POPCNT`). HisamDB'deki opsiyonel **Rust Native SIMD** çekirdeği tam olarak bu donanım gücünü kullanır.
 
 ---
 
@@ -71,23 +71,23 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 | Kullanım Senaryosu | Önerilen Ayar | Beklenen Performans (Ölçülmüş) |
 |---|---|---|
 | **Küçük/Orta Proje (< 50K vektör)** | `index_type="flat"` *(varsayılan)* | `%100` kesin doğruluk, `0.2–3.5 ms` |
-| **En Yüksek Hız & 100K–1M+ Vektör** | `index_type="hnsw"` (`pip install ".[hnsw]"`) | `1M` vektörde **`0.60 ms` (1,640 QPS)**, paralel batch **`18,765 QPS`** |
+| **En Yüksek Hız & 100K–1M+ Vektör** | `index_type="hnsw"` (`pip install "hisamdb[hnsw]"`) | `1M` vektörde **`0.60 ms` (1,640 QPS)**, paralel batch **`18,765 QPS`** |
 | **Çok Düşük RAM (1M Vektör veya 1536D OpenAI)** | `index_type="disk", use_mmap=True` | `1M` vektör → **`15.5 MB RAM`**, `25K×1536D` → **`0.95 MB RAM`**, **`%100` Recall!** |
 | **Aşırı Sıkıştırılmış RAM İçi Arama** | `index_type="ivf_pq", keep_raw_vectors=False` | `1M` vektör → **`42.7 MB RAM` (-%91)**, **`2.36 ms`** *(Rust SIMD ile)* |
 | **Kurumsal RAG / Doküman & Hata Kodu Arama** | `index_type="hnsw"` + `hybrid_search(fusion="rrf")` | **`0.94 ms` (1,033 QPS)**, **`Hit@10 = %100`** (Dense-Only `%53` idi!) |
-| **Çok Kullanıcılı SaaS / Mikroservis** | `microvectordb-server` + `RemoteMicroVectorDB` | `POST /search` **`3.94 ms`**, `/batch_search(64)` **`1,610 QPS`**, SHA-256 Tenant İzolasyonu |
+| **Çok Kullanıcılı SaaS / Mikroservis** | `hisamdb-server` + `RemoteHisamDB` | `POST /search` **`3.94 ms`**, `/batch_search(64)` **`1,610 QPS`**, SHA-256 Tenant İzolasyonu |
 
 ---
 
 ## 📊 Doğrulanmış Performans Sonuçları ve Grafikler (`v1.0.0`)
 
-*Tüm grafikler ve tablolar kanıtlanmamış tahmini rakam içermez; doğrudan bu depodaki [`benchmarks/results/`](https://github.com/Ahmet003-cod/MicroVectorDB/tree/main/benchmarks/results) JSON kayıtlarından üretilmiştir. Donanım: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA/POPCNT), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS), `rustc 1.96.0`, FAISS 1.13.2. Tam bilimsel rapor: [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/BENCHMARK_REPORT.md).*
+*Tüm grafikler ve tablolar kanıtlanmamış tahmini rakam içermez; doğrudan bu depodaki [`benchmarks/results/`](https://github.com/Ahmet003-cod/HisamDB/tree/main/benchmarks/results) JSON kayıtlarından üretilmiştir. Donanım: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA/POPCNT), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS), `rustc 1.96.0`, FAISS 1.13.2. Tam bilimsel rapor: [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/BENCHMARK_REPORT.md).*
 
-### 1. `v0.2.0 → v1.0.0` Evrim Özeti (Gerçek Hızlanma Çarpanları)
+### 1. Mühendislik Evrimi Özeti (Gerçek Hızlanma Çarpanları)
 
-![MicroVectorDB Evrimi v0.2.0 - v1.0.0 Hızlanma Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/evolution_speedup.png)
+![HisamDB Evrimi v0.2.0 - v1.0.0 Hızlanma Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/evolution_speedup.png)
 
-| Optimizasyon Alanı | Eski Durum | MicroVectorDB `v1.0.0` | Kazanım |
+| Optimizasyon Alanı | Eski Durum | HisamDB `v1.0.0` | Kazanım |
 |---|---|---|---|
 | **Tekil Kalıcı Silme (10K / 100K)** | `181.90 ms` *(v0.3)* | **`0.403 ms` / `0.382 ms`** *(Tombstone+WAL)* | **451.4x daha hızlı** |
 | **Arka Plan İndeks İnşası Okuyucu Kesintisi** | `1,048 ms` tam bloklama | **P50=`0.363 ms` · Max=`3.99 ms`** *(2,212 canlı okuma)* | **262.6x düşük kesinti** |
@@ -100,7 +100,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 2. Büyük Ölçek Performansı: `10.000 → 1.000.000` Vektör (128D vs C++ FAISS)
 
-![10K'dan 1 Milyon Vektöre Ölçek ve RAM Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/scale_1m_benchmark.png)
+![10K'dan 1 Milyon Vektöre Ölçek ve RAM Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/scale_1m_benchmark.png)
 
 - **1.000.000 Vektörde `DiskIndex (MMap)`:** Ham veri `488.3 MB` iken yalnızca **`15.52 MB RAM` (-%96.8 tasarruf)** kullanarak **`9.56 ms`** gecikmeyle **`%100.0` (`1.000`) Recall@10** sağlar!
 - **1.000.000 Vektörde `HNSW`:** **`0.605 ms` (`1,640 QPS`)** ile milisaniye-altı arama yapar ve `FAISS IndexHNSWFlat`'ten daha yüksek Recall@10 (`0.744` vs `0.736`) elde eder.
@@ -110,7 +110,7 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 3. Yüksek Boyutlu LLM Embedding'leri (`384D MiniLM`, `768D BGE/E5`, `1536D OpenAI`)
 
-![Yüksek Boyutlu LLM Embedding Performansı: RAM, Gecikme ve Doğruluk](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/memory_vs_recall.png)
+![Yüksek Boyutlu LLM Embedding Performansı: RAM, Gecikme ve Doğruluk](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/memory_vs_recall.png)
 
 - **OpenAI `1536D` (`25K` vektör, ham `146.5 MB`):**
   - **`DiskIndex (MMap)`:** Yalnızca **`0.95 MB RAM` (-%99.4 tasarruf!)** ile **`1.50 ms` (`526 QPS`)** ve **`%100.0` Recall@10** — RAM'deki Flat Float32'den (`6.30 ms`) **4.2x daha hızlı!**
@@ -122,9 +122,9 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 4. Opsiyonel Rust Native SIMD (`AVX2 + FMA3 + POPCNT`) vs Saf NumPy vs C++ FAISS
 
-![Rust Native SIMD vs Saf NumPy vs C++ FAISS Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/simd_vs_numpy_vs_faiss.png)
+![Rust Native SIMD vs Saf NumPy vs C++ FAISS Karşılaştırması](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/simd_vs_numpy_vs_faiss.png)
 
-Çekirdekte hiçbir zorunlu C/Rust derleyicisi olmadan %100 saf NumPy ile çalışan MicroVectorDB, isteyen kullanıcılar için tek komutla derlenen sıfır-bağımlılıklı Rust SIMD çekirdeği (`kernels_experimental/mvdb_simd.rs`) sunar:
+Çekirdekte hiçbir zorunlu C/Rust derleyicisi olmadan %100 saf NumPy ile çalışan HisamDB, isteyen kullanıcılar için tek komutla derlenen sıfır-bağımlılıklı Rust SIMD çekirdeği (`kernels_experimental/hisam_simd.rs`) sunar:
 - **Flat PQ (`100K × 128D`):** `9.41 ms → 1.95 ms` (**4.83x hızlanma**, P95 `2.18 ms` < FAISS `2.22 ms`).
 - **Binary 64-bit POPCNT (`100K × 768D`):** `13.10 ms → 3.02 ms` (**4.33x hızlanma**, yalnızca `9.16 MB RAM`).
 - **IVF-PQ (`100K × 128D`):** `1.18 ms → 0.62 ms` (**2.04x QPS**, P95 `0.77 ms` < FAISS `0.94 ms` ve **+%49.5 daha yüksek Recall@10**!).
@@ -134,11 +134,11 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ### 5. Neden Hibrit Arama? — Kurumsal RAG Doğruluk & Hız Kıyaslaması
 
-![Dense vs BM25 vs Hibrit RAG Doğruluk ve Hız Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/MicroVectorDB/main/docs/assets/hybrid_rag_accuracy.png)
+![Dense vs BM25 vs Hibrit RAG Doğruluk ve Hız Grafiği](https://raw.githubusercontent.com/Ahmet003-cod/HisamDB/main/docs/assets/hybrid_rag_accuracy.png)
 
 10.000 kurumsal dokümanda (hem anlamsal sorular hem kesin `ERR-XXXX` hata kodu / terim sorguları):
 - Yalnızca vektör (`Dense-Only`) kesin kodları kaçırarak **%53 Hit@10**, yalnızca metin (`BM25-Only`) eş anlamlı ifadeleri kaçırarak **%50 Hit@10** alırken;
-- **MicroVectorDB Hibrit Arama (`Dense + BM25, RRF`)** yalnızca **`0.94 ms` (`1,033 QPS`)** sürede **`%100` (`1.000`) Hit@10** doğruluğuna ulaşır!
+- **HisamDB Hibrit Arama (`Dense + BM25, RRF`)** yalnızca **`0.94 ms` (`1,033 QPS`)** sürede **`%100` (`1.000`) Hit@10** doğruluğuna ulaşır!
 
 ---
 
@@ -146,19 +146,19 @@ Vektörlerdeki her sayı normalde 32 bit (`float32` = 4 bayt) yer kaplar. Tıpk�
 
 ```bash
 # 1. PyPI'dan temel kurulum (yalnızca numpy — sıfır ağır bağımlılık!):
-pip install microvectordb
+pip install hisamdb
 
 # 2. Opsiyonel HNSW graf indeksi desteği ile:
-pip install "microvectordb[hnsw]"
+pip install "hisamdb[hnsw]"
 
 # 3. Opsiyonel hızlı orjson metadata yükleyici ile:
-pip install "microvectordb[fast]"
+pip install "hisamdb[fast]"
 
 # 4. Opsiyonel üretim FastAPI REST sunucusu (FastAPI + Uvicorn + Pydantic):
-pip install "microvectordb[server]"
+pip install "hisamdb[server]"
 
 # 5. Tüm performans ve sunucu eklentileri (hnswlib + orjson + server):
-pip install "microvectordb[all]"
+pip install "hisamdb[all]"
 
 # 6. Kaynak koddan geliştirme ve benchmark araçlarıyla kurulum:
 pip install -e ".[all,dev,bench]"
@@ -166,17 +166,17 @@ pip install -e ".[all,dev,bench]"
 
 ### Opsiyonel: Rust Native SIMD (`AVX2 + FMA3 + POPCNT`) Hızlandırması (İsteğe Bağlı)
 
-Bilgisayarınızda Rust (`rustc`) varsa tek komutla yerel SIMD hızlandırıcısını derleyebilirsiniz — MicroVectorDB bunu açılışta otomatik algılar (derlemezseniz hiçbir hata vermeden saf NumPy ile çalışır):
+Bilgisayarınızda Rust (`rustc`) varsa tek komutla yerel SIMD hızlandırıcısını derleyebilirsiniz — HisamDB bunu açılışta otomatik algılar (derlemezseniz hiçbir hata vermeden saf NumPy ile çalışır):
 
 ```bash
 # Windows (PowerShell):
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/mvdb_simd.dll
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/hisam_simd.dll
 
 # Linux:
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/libmvdb_simd.so
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/libhisam_simd.so
 
 # macOS:
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/libmvdb_simd.dylib
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/libhisam_simd.dylib
 ```
 
 ---
@@ -186,9 +186,9 @@ rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experiment
 ### 1. Hibrit Arama (Dense + BM25 + RRF) ve RAG Bağlam Penceresi
 
 ```python
-from microvectordb import MicroVectorDB
+from hisamdb import HisamDB
 
-with MicroVectorDB("./rag_db") as db:
+with HisamDB("./rag_db") as db:
     coll = db.get_or_create_collection(
         name="knowledge_base",
         dimension=4,
@@ -242,9 +242,9 @@ with MicroVectorDB("./rag_db") as db:
 ### 2. Ultra Düşük RAM (`DiskIndex` / `MMap`), Multi-Tenant ve SHA-256 Snapshot
 
 ```python
-from microvectordb import MicroVectorDB
+from hisamdb import HisamDB
 
-with MicroVectorDB("./prod_db", use_mmap=True) as db:
+with HisamDB("./prod_db", use_mmap=True) as db:
     # 1M vektörde ~15.5 MB RAM ile %100 Recall:
     db.get_or_create_collection("docs_large", dimension=1536, metric="cosine", index_type="disk", use_mmap=True)
 
@@ -264,17 +264,17 @@ with MicroVectorDB("./prod_db", use_mmap=True) as db:
     db.create_snapshot("./backups/snap_v1")
 
 # Tek bir bit bile bozulsa DataCorruptionError fırlatarak güvenli geri yükleme:
-MicroVectorDB.restore_snapshot("./backups/snap_v1", "./restored_db")
+HisamDB.restore_snapshot("./backups/snap_v1", "./restored_db")
 ```
 
-### 3. Asenkron İstemci (`AsyncMicroVectorDB`), Paralel Batch & Bloklamayan Arka Plan Bakım
+### 3. Asenkron İstemci (`AsyncHisamDB`), Paralel Batch & Bloklamayan Arka Plan Bakım
 
 ```python
 import asyncio
-from microvectordb import AsyncMicroVectorDB
+from hisamdb import AsyncHisamDB
 
 async def main():
-    async with AsyncMicroVectorDB("./async_db", max_workers=8) as db:
+    async with AsyncHisamDB("./async_db", max_workers=8) as db:
         coll = await db.get_or_create_collection(
             "docs", dimension=4, metric="cosine", index_type="hnsw",
             index_params={"auto_compact_async": True},
@@ -296,26 +296,26 @@ asyncio.run(main())
 
 ```bash
 # Sunucuyu başlat (veya: docker compose up -d --build):
-MVDB_API_KEYS="mvdb_admin_key:admin:read,write,admin" microvectordb-server --host 0.0.0.0 --port 8000
+HISAM_API_KEYS="hisam_admin_key:admin:read,write,admin" hisamdb-server --host 0.0.0.0 --port 8000
 ```
 
 ```python
-from microvectordb import RemoteMicroVectorDB
+from hisamdb import RemoteHisamDB
 
 # Harici requests/httpx gerektirmez — standart kütüphane Keep-Alive HTTP/1.1 SDK!
-with RemoteMicroVectorDB("http://127.0.0.1:8000", api_key="mvdb_admin_key") as db:
+with RemoteHisamDB("http://127.0.0.1:8000", api_key="hisam_admin_key") as db:
     coll = db.get_or_create_collection("docs", dimension=4, metric="cosine")
     coll.add(ids=["1"], vectors=[[1, 0, 0, 0]], documents=["İstanbul sunucu kılavuzu"])
     hits = coll.hybrid_search(query_vector=[1, 0, 0, 0], query_text="İstanbul", limit=3)
     print(hits[0].id, round(hits[0].score, 4))
 ```
 
-### 5. Geriye Dönük Uyumlu ChromaDB Stili API (`v0.2.0`)
+### 5. ChromaDB Stili Klasik API
 
 ```python
-import microvectordb
+import hisamdb
 
-client = microvectordb.PersistentClient(path="./my_vectordb", use_mmap=False)
+client = hisamdb.PersistentClient(path="./my_hisamdb", use_mmap=False)
 collection = client.get_or_create_collection(name="makaleler", metric="cosine")
 collection.add(ids=["doc1"], embeddings=[[0.9, 0.1, 0.0]], documents=["Merhaba"], metadatas=[{"tag": "v1"}])
 res = collection.query(query_embeddings=[[0.9, 0.1, 0.0]], n_results=1, where={"tag": "v1"})
@@ -327,10 +327,10 @@ client.close()
 ## 📁 Proje Mimarisi
 
 ```text
-MicroVectorDB/
-├── microvectordb/
+HisamDB/
+├── hisamdb/
 │   ├── __init__.py             # Ana paket arayüzü (v1.0.0)
-│   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient, Snapshot & Multi-Tenant
+│   ├── client.py               # HisamDB, PersistentClient, EphemeralClient, Snapshot & Multi-Tenant
 │   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, Hybrid/RAG, Tombstone, WAL, BG)
 │   ├── types.py                # QueryPlan, QueryResult, SearchResultItem ve özel hatalar
 │   ├── metrics/                # inv_norms Kosinüs, sq_norms Öklid, Dot + opsiyonel native_simd yükleyici
@@ -339,12 +339,12 @@ MicroVectorDB/
 │   ├── quantization/           # Scalar (INT8), Float16, Binary (POPCNT), ProductQuantizer (PQ)
 │   ├── indexes/                # IVF, Precomputed IVF-PQ, DiskIndex + Streaming, HNSW, QueryOptimizer
 │   ├── search/                 # Vektörize Okapi BM25, SparseVectorIndex, RRF/Weighted Füzyon, RAG & Multi-Tenant
-│   ├── concurrency/            # RWLock, BatchQueryExecutor, BackgroundTaskManager, AsyncMicroVectorDB
+│   ├── concurrency/            # RWLock, BatchQueryExecutor, BackgroundTaskManager, AsyncHisamDB
 │   ├── api/                    # FastAPI REST sunucusu, SHA-256 Auth/Tenant, Rate Limiter, Prometheus /metrics, HTTP SDK
-│   ├── distance.py             # v0.2.0 uyumluluk cephesi -> metrics/
-│   └── ivf_index.py            # v0.2.0 uyumluluk cephesi -> indexes/ivf.py
+│   ├── distance.py             # Klasik mesafe uyumluluk cephesi -> metrics/
+│   └── ivf_index.py            # Klasik IVF uyumluluk cephesi -> indexes/ivf.py
 ├── kernels_experimental/
-│   ├── mvdb_simd.rs            # Opsiyonel sıfır-bağımlılıklı Rust AVX2+FMA3+POPCNT çekirdeği
+│   ├── hisam_simd.rs           # Opsiyonel sıfır-bağımlılıklı Rust AVX2+FMA3+POPCNT çekirdeği
 │   ├── avx2_dot_product.c      # Referans C/AVX2 SIMD örneği
 │   └── README.md               # Tek komutla derleme & Python kullanımı
 ├── benchmarks/
@@ -360,7 +360,7 @@ MicroVectorDB/
 ├── examples/                   # 7 çalışan örnek (quickstart..async..REST sunucu + SDK)
 ├── Dockerfile                  # Çok aşamalı non-root üretim imajı (HEALTHCHECK dahil)
 ├── docker-compose.yml          # Kalıcı hacimli ve ortam yapılandırmalı Compose tanımı
-├── ARCHITECTURE_AUDIT.md       # v0.2.0 derinlemesine mimari ve performans denetimi
+├── ARCHITECTURE_AUDIT.md       # Başlangıç mimari ve performans denetimi
 ├── BENCHMARK_REPORT.md         # Tam bilimsel benchmark raporu (Faz 1..6)
 ├── ROADMAP.md                  # 6/6 fazı tamamlanmış mühendislik yol haritası
 └── CHANGELOG.md                # Sürüm geçmişi
@@ -370,12 +370,12 @@ MicroVectorDB/
 
 ## 🗺️ Dokümantasyon
 
-- [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/BENCHMARK_REPORT.md) — Tüm fazların tam ölçüm tabloları (`10K → 1M`, `128D–1536D`, SIMD, Hibrit RAG, Async, HTTP REST)
-- [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/ARCHITECTURE_SCALE_RESEARCH.md) — Native Rust SIMD analizi, GPU/CUDA fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı
-- [`docs/API_SERVER.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/API_SERVER.md) — FastAPI REST sunucusu, SHA-256 Auth/Tenant güvenliği, Prometheus `/metrics`, Python SDK ve Docker
-- [`docs/RELIABILITY.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
-- [`ARCHITECTURE_AUDIT.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/ARCHITECTURE_AUDIT.md) — Projenin `v0.2.0` başlangıç denetimi ve çözülen darboğazların kökeni
-- [`ROADMAP.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/ROADMAP.md) & [`CHANGELOG.md`](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/CHANGELOG.md) — Tamamlanan 6 fazın yol haritası ve sürüm notları
+- [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/BENCHMARK_REPORT.md) — Tüm fazların tam ölçüm tabloları (`10K → 1M`, `128D–1536D`, SIMD, Hibrit RAG, Async, HTTP REST)
+- [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/ARCHITECTURE_SCALE_RESEARCH.md) — Native Rust SIMD analizi, GPU/CUDA fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı
+- [`docs/API_SERVER.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/API_SERVER.md) — FastAPI REST sunucusu, SHA-256 Auth/Tenant güvenliği, Prometheus `/metrics`, Python SDK ve Docker
+- [`docs/RELIABILITY.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
+- [`ARCHITECTURE_AUDIT.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/ARCHITECTURE_AUDIT.md) — Başlangıç denetimi ve çözülen darboğazların kökeni
+- [`ROADMAP.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/ROADMAP.md) & [`CHANGELOG.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/CHANGELOG.md) — Tamamlanan 6 fazın yol haritası ve sürüm notları
 
 ---
 
@@ -402,4 +402,4 @@ python examples/07_rest_server_and_sdk.py
 ## 👨‍💻 Geliştirici & Lisans
 
 **Ahmet GÜN** · GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)  
-Bu proje **[MIT Lisansı](https://github.com/Ahmet003-cod/MicroVectorDB/blob/main/LICENSE)** ile lisanslanmıştır.
+Bu proje **[MIT Lisansı](https://github.com/Ahmet003-cod/HisamDB/blob/main/LICENSE)** ile lisanslanmıştır.

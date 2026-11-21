@@ -13,8 +13,8 @@ import os
 import shutil
 import tempfile
 import numpy as np
-import microvectordb
-from microvectordb import AsyncMicroVectorDB, is_hnsw_available
+import hisamdb
+from hisamdb import AsyncMicroVectorDB, is_hnsw_available
 
 
 async def main() -> None:
@@ -22,7 +22,7 @@ async def main() -> None:
     db_path = os.path.join(tmp_dir, "async_prod_db")
 
     try:
-        print(f"=== MicroVectorDB v{microvectordb.__version__} Async & Paralel Eşzamanlılık Demosu ===\n")
+        print(f"=== MicroVectorDB v{hisamdb.__version__} Async & Paralel Eşzamanlılık Demosu ===\n")
         rng = np.random.default_rng(42)
         dim = 32
         n_docs = 500

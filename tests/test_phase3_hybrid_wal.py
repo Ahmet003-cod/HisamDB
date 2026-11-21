@@ -17,7 +17,7 @@ import tempfile
 import unittest
 import numpy as np
 
-from microvectordb import (
+from hisamdb import (
     DataCorruptionError,
     MicroVectorDB,
     WriteAheadLog,
@@ -25,7 +25,7 @@ from microvectordb import (
     is_hnsw_available,
     tokenize_text,
 )
-from microvectordb.storage.wal import OP_DELETE
+from hisamdb.storage.wal import OP_DELETE
 
 
 class TestTombstoneWALAndSnapshots(unittest.TestCase):

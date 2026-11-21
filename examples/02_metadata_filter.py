@@ -1,7 +1,7 @@
 """
 02_metadata_filter.py
 ---------------------
-microvectordb ile gelişmiş metadata filtreleme (where) örnekleri.
+hisamdb ile gelişmiş metadata filtreleme (where) örnekleri.
 Desteklenen filtreler:
 - Basit eşitlik: {"kategori": "elektronik"}
 - Karşılaştırma operatörleri:
@@ -15,10 +15,10 @@ Desteklenen filtreler:
     $nin : Liste içinde yok mu
 """
 
-import microvectordb
+import hisamdb
 
 # In-memory hızlı istemci
-client = microvectordb.EphemeralClient()
+client = hisamdb.EphemeralClient()
 coll = client.create_collection("urunler", dimension=3, metric="cosine")
 
 # E-ticaret ürünleri ekleyelim

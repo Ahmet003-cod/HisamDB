@@ -23,8 +23,8 @@ import psutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import microvectordb
-from microvectordb import MicroVectorDB, is_hnsw_available
+import hisamdb
+from hisamdb import MicroVectorDB, is_hnsw_available
 
 try:
     import faiss
@@ -76,7 +76,7 @@ def main() -> None:
     tmp_dir = tempfile.mkdtemp(prefix="mvdb_bench_v05_")
 
     meta = {
-        "microvectordb_version": microvectordb.__version__,
+        "microvectordb_version": hisamdb.__version__,
         "python": platform.python_version(),
         "os": platform.platform(),
         "cpu_logical_cores": os.cpu_count(),

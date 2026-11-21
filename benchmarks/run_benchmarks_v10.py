@@ -36,8 +36,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 import faiss  # noqa: E402
-import microvectordb  # noqa: E402
-from microvectordb import (  # noqa: E402
+import hisamdb  # noqa: E402
+from hisamdb import (  # noqa: E402
     BinaryQuantizer,
     DiskIndex,
     Float16Quantizer,
@@ -50,7 +50,7 @@ from microvectordb import (  # noqa: E402
     native_simd_path,
     set_native_simd_enabled,
 )
-from microvectordb.metrics import (  # noqa: E402
+from hisamdb.metrics import (  # noqa: E402
     compute_distances,
     compute_inv_norms,
     normalize_vectors,
@@ -738,7 +738,7 @@ def main() -> None:
 
     payload = {
         "metadata": {
-            "microvectordb_version": microvectordb.__version__,
+            "microvectordb_version": hisamdb.__version__,
             "python": platform.python_version(),
             "os": platform.platform(),
             "cpu_logical_cores": os.cpu_count(),

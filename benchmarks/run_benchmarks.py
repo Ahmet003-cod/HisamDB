@@ -22,8 +22,8 @@ import psutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import microvectordb
-from microvectordb import (
+import hisamdb
+from hisamdb import (
     EphemeralClient,
     IVFIndex,
     MicroVectorDB,
@@ -409,7 +409,7 @@ def main() -> None:
     os.makedirs(out_dir, exist_ok=True)
 
     meta = {
-        "microvectordb_version": microvectordb.__version__,
+        "microvectordb_version": hisamdb.__version__,
         "python": platform.python_version(),
         "os": platform.platform(),
         "cpu_logical_cores": os.cpu_count(),

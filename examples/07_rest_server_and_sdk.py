@@ -16,9 +16,9 @@ import threading
 import time
 import uvicorn
 
-import microvectordb
-from microvectordb import RemoteMicroVectorDB
-from microvectordb.api import APIKeyRegistry, ServerConfig, create_app
+import hisamdb
+from hisamdb import RemoteMicroVectorDB
+from hisamdb.api import APIKeyRegistry, ServerConfig, create_app
 
 
 def main() -> None:
@@ -48,7 +48,7 @@ def main() -> None:
         time.sleep(0.02)
 
     try:
-        print(f"=== MicroVectorDB v{microvectordb.__version__} REST Sunucusu & Python SDK Demosu ===\n")
+        print(f"=== MicroVectorDB v{hisamdb.__version__} REST Sunucusu & Python SDK Demosu ===\n")
         url = f"http://127.0.0.1:{port}"
         with RemoteMicroVectorDB(url, api_key="mvdb_demo_admin_key") as db:
             for _ in range(50):

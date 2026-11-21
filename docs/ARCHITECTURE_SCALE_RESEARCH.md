@@ -1,16 +1,16 @@
-# MicroVectorDB v1.0.0 — Büyük Ölçek, Native SIMD, GPU ve Dağıtık Mimari Araştırma Raporu
+# HisamDB v1.0.0 — Büyük Ölçek, Native SIMD, GPU ve Dağıtık Mimari Araştırma Raporu
 
-Bu belge, MicroVectorDB `v1.0.0` Faz 6 kapsamında yürütülen **1.000.000 vektör ölçek testleri**, **384D / 768D / 1536D LLM embedding ölçümleri**, **opsiyonel Rust Native SIMD (AVX2 + FMA3 + POPCNT) çekirdeğinin saf NumPy ve C++ FAISS'e karşı bilimsel analizi**, **GPU/CUDA fizibilitesi** ve **`v2.x` dağıtık mimari tasarım taslağını** içerir.
+Bu belge, HisamDB `v1.0.0` Faz 6 kapsamında yürütülen **1.000.000 vektör ölçek testleri**, **384D / 768D / 1536D LLM embedding ölçümleri**, **opsiyonel Rust Native SIMD (AVX2 + FMA3 + POPCNT) çekirdeğinin saf NumPy ve C++ FAISS'e karşı bilimsel analizi**, **GPU/CUDA fizibilitesi** ve **`v2.x` dağıtık mimari tasarım taslağını** içerir.
 
 > **Ölçüm Donanımı:** Windows x86-64, 12 mantıksal Intel çekirdeği (`AVX2`, `FMA3`, `F16C`, `POPCNT`), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS 0.3.27), `rustc 1.96.0`, FAISS 1.13.2. Tüm veriler [`benchmarks/results/benchmark_v1.0.0.json`](../benchmarks/results/benchmark_v1.0.0.json) dosyasından alınmıştır.
 
 ---
 
-## 1. Native SIMD (Rust `mvdb_simd.rs`) vs Saf NumPy vs C++ FAISS Analizi
+## 1. Native SIMD (Rust `hisam_simd.rs`) vs Saf NumPy vs C++ FAISS Analizi
 
 ### 1.1. Neden Bazı İşlemlerde NumPy/OpenBLAS Yeterli, Bazılarında Değil?
 
-Modern NumPy, `float32` matris çarpımlarını (`np.dot` / `SGEMV` / `SGEMM`) zaten **OpenBLAS AVX2/AVX-512 Assembly** çekirdeklerine devreder. Bu nedenle saf `float32` Flat ve IVF aramalarında harici C/Rust kodu yazmak kayda değer bir kazanım üretmez (MicroVectorDB Flat Float32, FAISS `IndexFlatIP` ile neredeyse aynı hızdadır).
+Modern NumPy, `float32` matris çarpımlarını (`np.dot` / `SGEMV` / `SGEMM`) zaten **OpenBLAS AVX2/AVX-512 Assembly** çekirdeklerine devreder. Bu nedenle saf `float32` Flat ve IVF aramalarında harici C/Rust kodu yazmak kayda değer bir kazanım üretmez (HisamDB Flat Float32, FAISS `IndexFlatIP` ile neredeyse aynı hızdadır).
 
 Ancak BLAS kütüphanelerinin **desteklemediği** üç kritik sıkıştırılmış arama çekirdeğinde saf NumPy ağır ara bellek kopyaları oluşturur:
 
@@ -29,7 +29,7 @@ Ancak BLAS kütüphanelerinin **desteklemediği** üç kritik sıkıştırılmı
 | **INT8 (`50K × 768D` BGE/E5)** | 30.763 ms | **16.106 ms** | **1.91x** | — | Recall@10 = **0.968**, RAM **37.0 MB** (4x tasarruf) |
 | **INT8 (`25K × 1536D` OpenAI)** | 26.025 ms | **14.096 ms** | **1.85x** | — | Recall@10 = **0.986**, RAM **36.8 MB** (4x tasarruf) |
 
-**Mühendislik Kararı:** `kernels_experimental/mvdb_simd.rs` (~140 satır, sıfır harici crate) tek `rustc` komutuyla derlenip `ctypes` üzerinden şeffaf biçimde devreye girer; derlenmediği ortamlarda MicroVectorDB sıfır hata ile %100 saf NumPy yolunu korur. Böylece **sıfır zorunlu derleyici / sıfır ek bağımlılık** ilkesi bozulmadan C++ FAISS hız bandına erişilir.
+**Mühendislik Kararı:** `kernels_experimental/hisam_simd.rs` (~140 satır, sıfır harici crate) tek `rustc` komutuyla derlenip `ctypes` üzerinden şeffaf biçimde devreye girer; derlenmediği ortamlarda HisamDB sıfır hata ile %100 saf NumPy yolunu korur. Böylece **sıfır zorunlu derleyici / sıfır ek bağımlılık** ilkesi bozulmadan C++ FAISS hız bandına erişilir.
 
 ---
 
@@ -38,7 +38,7 @@ Ancak BLAS kütüphanelerinin **desteklemediği** üç kritik sıkıştırılmı
 ### 2.1. 1.000.000 Vektörde Bellek Duvarı (Memory Wall)
 Ham `1M × 128D` `float32` matrisi **488.3 MB**, `HNSW (M=16)` ise grafik bağlantılarıyla **625.6 MB** RAM tüketir (`1M × 1536D` OpenAI embedding'lerinde bu rakam **~6.2 GB RAM**'e çıkar!).
 
-MicroVectorDB `v1.0.0` ölçümleri, tek makinede RAM duvarını aşmanın iki pratik yolunu doğrulamıştır:
+HisamDB `v1.0.0` ölçümleri, tek makinede RAM duvarını aşmanın iki pratik yolunu doğrulamıştır:
 - **`DiskIndex (MMap)`:** `1,000,000 × 128D` vektörü yalnızca **15.52 MB RAM (-%96.8)** ile **9.56 ms P50** ve **%100.0 (`1.000`) Recall@10** ile arar! `25K × 1536D` OpenAI vektörlerinde ise **0.95 MB RAM (-%99.35)** ile **1.50 ms** (RAM'deki Flat Float32'den **4.2x daha hızlı!**).
 - **`IVF-PQ (Native SIMD)`:** `1,000,000 × 128D` vektörü **42.71 MB RAM (-%91.3)** ile **2.36 ms (425 QPS)** hızında arar. `500,000` vektörde MVDB `IVF-PQ` (`1.55 ms`, R@10=`0.192`), C++ FAISS `IndexIVFPQ`'yu (`1.67 ms`, R@10=`0.186`) hem gecikme hem doğrulukta geride bırakmıştır.
 
@@ -50,7 +50,7 @@ MicroVectorDB `v1.0.0` ölçümleri, tek makinede RAM duvarını aşmanın iki p
 
 ## 3. GPU / CUDA / CuPy Hızlandırma Fizibilite Analizi
 
-"MicroVectorDB'ye GPU/CUDA desteği eklemeli miyiz?" sorusu veri aktarım (PCIe) ve hesaplama maliyetine göre bilimsel olarak değerlendirilmiştir:
+"HisamDB'ye GPU/CUDA desteği eklemeli miyiz?" sorusu veri aktarım (PCIe) ve hesaplama maliyetine göre bilimsel olarak değerlendirilmiştir:
 
 | İş Yükü Profili | CPU (AVX2 / HNSW) | GPU (CUDA / CuPy) Tahmini | Kazanan & Gerekçe |
 |---|---|---|---|
@@ -59,14 +59,14 @@ MicroVectorDB `v1.0.0` ölçümleri, tek makinede RAM duvarını aşmanın iki p
 | **Büyük K-Means / PQ / IVF Eğitimi (`N ≥ 1M`, `768D–1536D`)** | 20 – 180 sn | **1 – 6 sn** | **GPU 15x–30x kazanır.** `DiskIndex` ve `IVF-PQ` eğitim sürelerini dakikalardan saniyelere indirir. |
 
 ### Önerilen `v2.x` GPU Entegrasyon Stratejisi
-- Çekirdek `numpy` bağımlılığı korunarak opsiyonel **`pip install "microvectordb[gpu]"` (`cupy-cuda12x` veya `torch`)** arka ucu tasarlanmalıdır.
+- Çekirdek `numpy` bağımlılığı korunarak opsiyonel **`pip install "hisamdb[gpu]"` (`cupy-cuda12x` veya `torch`)** arka ucu tasarlanmalıdır.
 - Yalnızca **K-Means/PQ eğitim motoru** ve **`batch_search(Q >= 64)` Flat/IVF çekirdekleri** `xp = cupy if gpu else numpy` dizi arayüzü (Array API Standard) ile GPU'ya yönlendirilmelidir; tekil HNSW sorguları CPU'da kalmalıdır.
 
 ---
 
 ## 4. `v2.x` Dağıtık Mimari Tasarım Taslağı (10M – 1B+ Vektör)
 
-Tek düğümlü MicroVectorDB `v1.0.0`, `DiskIndex` ve `IVF-PQ` sayesinde **1M–5M vektöre** kadar rahatça ölçeklenir. **10M–1B+ vektör** ve **yüksek erişilebilirlik (HA)** gerektiren kurumsal senaryolar için `v2.x` dağıtık mimarisi şu 4 bileşene dayanacaktır:
+Tek düğümlü HisamDB `v1.0.0`, `DiskIndex` ve `IVF-PQ` sayesinde **1M–5M vektöre** kadar rahatça ölçeklenir. **10M–1B+ vektör** ve **yüksek erişilebilirlik (HA)** gerektiren kurumsal senaryolar için `v2.x` dağıtık mimarisi şu 4 bileşene dayanacaktır:
 
 ```text
                 [ İstemciler: gRPC / REST SDK ]
@@ -82,13 +82,13 @@ Tek düğümlü MicroVectorDB `v1.0.0`, `DiskIndex` ve `IVF-PQ` sayesinde **1M�
 ```
 
 1. **Yatay Bölümleme (Consistent-Hashing Sharding):**
-   - Koleksiyonlar `shard_id = sha256(doc_id veya tenant_id) % num_shards` ile bağımsız MicroVectorDB örneklerine dağıtılır.
+   - Koleksiyonlar `shard_id = sha256(doc_id veya tenant_id) % num_shards` ile bağımsız HisamDB örneklerine dağıtılır.
    - Çok kiracılı (Multi-Tenant) iş yüklerinde `tenant_id` bazlı yönlendirme sayesinde bir kiracının sorgusu yalnızca kendi shard'ına gider (**0 scatter-gather maliyeti**).
 2. **WAL Tabanlı Replikasyon ve Yüksek Erişilebilirlik:**
    - Faz 3'te oluşturduğumuz sıralı LSN'li ikili `WriteAheadLog` (`MWAL`), doğrudan **Leader → Read Replica** akış replikasyonunun temelidir.
    - Küme topolojisi ve shard lider seçimi **Raft** (veya harici `etcd`) üzerinde tutulur; yazmalar liderde WAL'a işlenip replikalara gönderilir, okumalar replikalar arasında yük dengelenir.
 3. **Dağıtık Scatter-Gather ve Füzyon:**
-   - Çapraz-shard sorgularda Coordinator paralel olarak tüm shard'lardan `top-k` ister ve yerel `fuse_rrf` / mesafe sıralaması ile birleştirir (mevcut `microvectordb/search/fusion.py` doğrudan yeniden kullanılabilir).
+   - Çapraz-shard sorgularda Coordinator paralel olarak tüm shard'lardan `top-k` ister ve yerel `fuse_rrf` / mesafe sıralaması ile birleştirir (mevcut `hisamdb/search/fusion.py` doğrudan yeniden kullanılabilir).
 4. **gRPC + Protobuf İkili İletişim Protokolü:**
    - Faz 5 HTTP REST benchmarkımızda `~0.3 ms` olan çekirdek araması, JSON serileştirme + TCP HTTP yüzünden `3.94 ms`'ye çıkmıştır.
    - İç shard-arası haberleşme ve yüksek QPS istemciler için `float32` vektörleri JSON yerine ham `bytes` taşıyan **gRPC / HTTP2** katmanı ağ gecikmesini `<1 ms` bandına indirecektir.

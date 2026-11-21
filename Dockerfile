@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml setup.py requirements.txt README.md LICENSE ./
-COPY microvectordb ./microvectordb
+COPY hisamdb ./hisamdb
 
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip \
@@ -23,20 +23,20 @@ FROM python:3.11-slim AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    MVDB_HOST="0.0.0.0" \
-    MVDB_PORT="8000" \
-    MVDB_DATA_DIR="/data" \
-    MVDB_SNAPSHOT_DIR="/data/_snapshots"
+    HISAM_HOST="0.0.0.0" \
+    HISAM_PORT="8000" \
+    HISAM_DATA_DIR="/data" \
+    HISAM_SNAPSHOT_DIR="/data/_snapshots"
 
-RUN groupadd --gid 10001 mvdb \
-    && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --create-home mvdb \
+RUN groupadd --gid 10001 hisamdb \
+    && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --create-home hisamdb \
     && mkdir -p /data /data/_snapshots \
-    && chown -R mvdb:mvdb /data
+    && chown -R hisamdb:hisamdb /data
 
 COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
-USER mvdb
+USER hisamdb
 
 EXPOSE 8000
 VOLUME ["/data"]
@@ -44,4 +44,4 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)" || exit 1
 
-CMD ["microvectordb-server", "--host", "0.0.0.0", "--port", "8000", "--data-dir", "/data"]
+CMD ["hisamdb-server", "--host", "0.0.0.0", "--port", "8000", "--data-dir", "/data"]

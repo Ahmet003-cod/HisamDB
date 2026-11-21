@@ -1,7 +1,7 @@
 """
 test_optimizations.py
 ---------------------
-microvectordb v0.2.0 optimizasyon modülleri için birim testleri.
+hisamdb v0.2.0 optimizasyon modülleri için birim testleri.
 IVF İndeks, Skalar Kuantizasyon ve performans iyileştirmelerini test eder.
 """
 
@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 import time
 
-from microvectordb import EphemeralClient, IVFIndex, ScalarQuantizer
+from hisamdb import EphemeralClient, IVFIndex, ScalarQuantizer
 
 
 class TestArgpartitionOptimization(unittest.TestCase):

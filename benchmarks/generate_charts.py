@@ -84,20 +84,20 @@ def make_architecture_diagram() -> None:
     ax.axis("off")
 
     # Başlık
-    ax.text(50, 59.5, "MicroVectorDB v1.0.0 — Katmanlı Sistem Mimarisi",
+    ax.text(50, 59.5, "HisamDB v1.0.0 — Katmanlı Sistem Mimarisi",
             ha="center", va="center", fontsize=17, fontweight="bold", color=C_TEXT)
-    ax.text(50, 56.8, "Yalnızca NumPy Çekirdek Bağımlılığı  •  Gömülü Python, Async, FastAPI REST Sunucu & Opsiyonel Rust SIMD",
-            ha="center", va="center", fontsize=10, color=C_SUBTEXT)
+    ax.text(50, 56.8, "Cutting-Edge Python Vektör Veritabanı  •  Yalnızca NumPy Çekirdek  •  Async, FastAPI REST & Opsiyonel Rust SIMD",
+            ha="center", va="center", fontsize=9.8, color=C_SUBTEXT)
 
     layers = [
         {
             "y": 46.5, "h": 7.5, "bg": "#EFF6FF", "border": "#93C5FD", "tag_c": "#1D4ED8",
             "title": "1. İSTEMCİLER & API",
             "boxes": [
-                ("MicroVectorDB", "Gömülü Python API\n(v0.2 Chroma uyumlu)"),
-                ("AsyncMicroVectorDB", "asyncio.gather() Fan-Out\n(3,287 QPS @ 100K)"),
-                ("FastAPI REST Sunucu", "microvectordb-server\nDocker + Prometheus /metrics"),
-                ("RemoteMicroVectorDB", "Sıfır-Bağımlılıklı SDK\nHTTP/1.1 Keep-Alive"),
+                ("HisamDB", "Gömülü Python API\n(Chroma uyumlu)"),
+                ("AsyncHisamDB", "asyncio.gather() Fan-Out\n(3,287 QPS @ 100K)"),
+                ("FastAPI REST Sunucu", "hisamdb-server\nDocker + Prometheus /metrics"),
+                ("RemoteHisamDB", "Sıfır-Bağımlılıklı SDK\nHTTP/1.1 Keep-Alive"),
             ],
         },
         {
@@ -229,7 +229,7 @@ def make_evolution_chart(v10: dict, v05: dict, v06: dict) -> None:
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, fontsize=9.2)
     ax.set_xlabel("Hızlanma Çarpanı (Kat — Logaritmik Ölçek, Yüksek Olan Daha İyi)", fontsize=10, fontweight="bold")
-    ax.set_title("MicroVectorDB Evrimi (v0.2.0 → v1.0.0): Gerçek Ölçülmüş Hızlanma Çarpanları",
+    ax.set_title("HisamDB Mühendislik Evrimi (v0.2.0 → v1.0.0): Gerçek Ölçülmüş Hızlanma Çarpanları",
                  fontsize=13, fontweight="bold", pad=14)
     ax.grid(axis="x", which="both", alpha=0.6)
     ax.spines["top"].set_visible(False)
@@ -268,10 +268,10 @@ def make_simd_chart(v10: dict) -> None:
         for r in grows:
             eng = r["engine"]
             if "Pure NumPy" in eng:
-                names.append("MVDB\nSaf NumPy")
+                names.append("HisamDB\nSaf NumPy")
                 colors.append(C_ORANGE)
             elif "Rust" in eng:
-                names.append("MVDB\nRust SIMD")
+                names.append("HisamDB\nRust SIMD")
                 colors.append(C_PRIMARY)
             else:
                 names.append("FAISS 1.13\n(C++ SIMD)")
@@ -320,12 +320,12 @@ def make_scale_1m_chart(v10: dict) -> None:
                  fontsize=13.5, fontweight="bold", y=1.01)
 
     series_spec = [
-        ("MVDB HNSW (M=16, efS=64)", "MVDB HNSW (0.60 ms @ 1M)", C_PURPLE, "o", "-", 2.5),
+        ("MVDB HNSW (M=16, efS=64)", "HisamDB HNSW (0.60 ms @ 1M)", C_PURPLE, "o", "-", 2.5),
         ("FAISS IndexHNSWFlat", "FAISS HNSW (0.55 ms @ 1M)", C_SLATE, "s", "--", 1.8),
-        ("MVDB IVF-PQ (Native SIMD)", "MVDB IVF-PQ SIMD (2.36 ms @ 1M)", C_PRIMARY, "^", "-", 2.4),
+        ("MVDB IVF-PQ (Native SIMD)", "HisamDB IVF-PQ SIMD (2.36 ms @ 1M)", C_PRIMARY, "^", "-", 2.4),
         ("FAISS IndexIVFPQ", "FAISS IVFPQ (1.97 ms @ 1M)", "#94A3B8", "v", "--", 1.7),
-        ("MVDB IVF (Float32)", "MVDB IVF Exact-Cluster (4.06 ms @ 1M)", C_ORANGE, "D", "-", 2.1),
-        ("MVDB DiskIndex (MMap)", "MVDB DiskIndex MMap (9.56 ms, 15 MB RAM)", C_TEAL, "P", "-", 2.5),
+        ("MVDB IVF (Float32)", "HisamDB IVF Exact-Cluster (4.06 ms @ 1M)", C_ORANGE, "D", "-", 2.1),
+        ("MVDB DiskIndex (MMap)", "HisamDB DiskIndex MMap (9.56 ms, 15 MB RAM)", C_TEAL, "P", "-", 2.5),
     ]
 
     x_idx = np.arange(len(scales))
@@ -350,11 +350,11 @@ def make_scale_1m_chart(v10: dict) -> None:
     # Sağ panel: 1,000,000 vektörde RAM karşılaştırması
     r1m = {r["engine"]: r for r in rows if r["n_vectors"] == 1_000_000}
     ram_items = [
-        ("MVDB DiskIndex\n(MMap, R@10=1.00)", r1m["MVDB DiskIndex (MMap)"]["ram_mb"], C_TEAL),
-        ("MVDB IVF-PQ\n(Native SIMD)", r1m["MVDB IVF-PQ (Native SIMD)"]["ram_mb"], C_PRIMARY),
+        ("HisamDB DiskIndex\n(MMap, R@10=1.00)", r1m["MVDB DiskIndex (MMap)"]["ram_mb"], C_TEAL),
+        ("HisamDB IVF-PQ\n(Native SIMD)", r1m["MVDB IVF-PQ (Native SIMD)"]["ram_mb"], C_PRIMARY),
         ("Ham Float32\n(Flat Referans)", 488.28, C_ORANGE),
-        ("MVDB IVF\n(Float32, R@10=1.00)", r1m["MVDB IVF (Float32)"]["ram_mb"], "#F59E0B"),
-        ("MVDB / FAISS\nHNSW (M=16)", r1m["MVDB HNSW (M=16, efS=64)"]["ram_mb"], C_PURPLE),
+        ("HisamDB IVF\n(Float32, R@10=1.00)", r1m["MVDB IVF (Float32)"]["ram_mb"], "#F59E0B"),
+        ("HisamDB / FAISS\nHNSW (M=16)", r1m["MVDB HNSW (M=16, efS=64)"]["ram_mb"], C_PURPLE),
     ]
     ram_labels = [x[0] for x in ram_items]
     ram_vals = [x[1] for x in ram_items]
@@ -426,7 +426,7 @@ def make_highdim_chart(v10: dict) -> None:
 
     # Sağ Panel: 1536D (25K OpenAI) — Sorgu Gecikmesi P50 (ms)
     order_1536 = [
-        ("MVDB HNSW (M=16, efS=64)", "MVDB HNSW", C_PURPLE),
+        ("MVDB HNSW (M=16, efS=64)", "HisamDB HNSW", C_PURPLE),
         ("FAISS IndexHNSWFlat", "FAISS HNSW", C_SLATE),
         ("MVDB Binary + Rescore (20x)", "Binary+Rescore\n(4.6 MB RAM)", C_GREEN),
         ("MVDB DiskIndex (MMap)", "DiskIndex MMap\n(0.9 MB RAM!)", C_TEAL),
@@ -518,7 +518,7 @@ def make_hybrid_rag_chart(v05: dict) -> None:
 
 
 def main() -> None:
-    print("MicroVectorDB v1.0.0 — Grafikler ve Mimari Diyagram Üretiliyor...")
+    print("HisamDB v1.0.0 — Grafikler ve Mimari Diyagram Üretiliyor...")
     v10 = load_json("benchmark_v1.0.0.json")
     v05 = load_json("benchmark_v0.5.0.json")
     v06 = load_json("benchmark_v0.6.0.json")

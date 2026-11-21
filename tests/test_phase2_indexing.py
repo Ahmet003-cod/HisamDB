@@ -15,7 +15,7 @@ import tempfile
 import unittest
 import numpy as np
 
-from microvectordb import (
+from hisamdb import (
     DataCorruptionError,
     DiskIndex,
     DiskStreamingScanner,

@@ -1,4 +1,4 @@
-# MicroVectorDB — Mühendislik Yol Haritası (`ROADMAP.md`)
+# HisamDB — Mühendislik Yol Haritası (`ROADMAP.md`)
 
 **Vizyon:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*  
 **Temel İlke:** Her faz; bilimsel ölçüm, geriye dönük uyumluluk, kapsamlı testler ve kanıtlanmış benchmark sonuçları ile tamamlanır.
@@ -29,7 +29,7 @@
    - `IVFIndex`: K-Means++, vektörize merkez güncelleme, bitişik küme vektör blokları, `cosine`/`dot_product`/`euclidean` desteği ve BLAS hızlandırma.
    - `ScalarQuantizer` (taşmasız, ölçek-ağırlıklı asimetrik mesafe + opsiyonel quantile clipping), `Float16Quantizer` (2x RAM tasarrufu), `BinaryQuantizer` (32x RAM tasarrufu, LUT popcount).
    - `Collection` içine `index_type="flat"|"ivf"|"hnsw"`, `quantization=None|"float16"|"int8"|"binary"`, `use_mmap`, `score_threshold`, `search()` ve `RWLock` eşzamanlılık güvenliği entegrasyonu.
-   - `MicroVectorDB` üst düzey kolaylık istemcisi (`PersistentClient` / `EphemeralClient` ile %100 uyumlu).
+   - `HisamDB` üst düzey kolaylık istemcisi (`PersistentClient` / `EphemeralClient` ile %100 uyumlu).
 6. **Bilimsel Benchmark & Test Altyapısı:**
    - Otomatik JSON/CSV/Markdown çıktı üreten benchmark paketi (`benchmarks/`).
    - Birim, eşzamanlılık, sınır durum, kalıcılık, v0.2 geriye dönük uyumluluk ve kurtarma testleri.
@@ -68,7 +68,7 @@
 ## Faz 4 — İleri Eşzamanlılık, Async İstemci ve Arka Plan İşçileri (`v0.6.0`)
 **Durum:** ✅ Tamamlandı (`81/81` test, `benchmarks/results/benchmark_v0.6.0.json` ve `docs/RELIABILITY.md` doğrulandı)
 - **Paralel Toplu Sorgu Yürütücüsü (`BatchQueryExecutor`, `batch_search`, `batch_hybrid_search`):** 100K×128D HNSW üzerinde **18,765 QPS (2.45x)**; ölçümlenmiş GIL/OpenBLAS sınırlarına göre otomatik işçi yönlendirmesi.
-- **`asyncio` İstemci Sarmalayıcısı (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):** Sıfır ek bağımlılıkla `asyncio.gather()` fan-out (**3,287 QPS** @ 100K HNSW).
+- **`asyncio` İstemci Sarmalayıcısı (`AsyncHisamDB`, `AsyncCollection`, `AsyncTenantCollection`):** Sıfır ek bağımlılıkla `asyncio.gather()` fan-out (**3,287 QPS** @ 100K HNSW).
 - **Bloklamayan Arka Plan Bakım (`BackgroundTaskManager`):** Snapshot-and-Swap `rebuild_index_async()` (50K IVF inşası süresince **2,212 canlı okuma, P50 = 0.363 ms, Max = 3.99 ms**) + coalesced `compact_async()` + `auto_compact_async=True` (**49.89 ms → 0.821 ms, 60.8x düşük silme kuyruk gecikmesi**).
 - **Açık Dayanıklılık & Eşzamanlılık Sözleşmesi (`docs/RELIABILITY.md`)** + double-checked thread-safe lazy init + `HNSWIndex` `_ef_lock` + 12 iş parçacıklı kaos/stres test paketi.
 
@@ -76,15 +76,15 @@
 
 ## Faz 5 — Üretim Sunucusu, Güvenlik, Gözlemlenebilirlik ve HTTP SDK (`v0.7.0`)
 **Durum:** ✅ Tamamlandı (`86/86` test, `benchmarks/results/benchmark_v0.7.0.json` ve `docs/API_SERVER.md` doğrulandı)
-- **FastAPI + Uvicorn REST Sunucusu (`microvectordb-server`):** Koleksiyon yönetimi, CRUD, toplu işlemler, hibrit/RAG/filtreli arama, `/health`, `/ready`, sıfır-bağımlılıklı Prometheus `/metrics`. Canlı 50K HNSW üzerinde `POST /search` **3.94 ms**, `POST /batch_search(64)` **1,610 QPS**.
+- **FastAPI + Uvicorn REST Sunucusu (`hisamdb-server`):** Koleksiyon yönetimi, CRUD, toplu işlemler, hibrit/RAG/filtreli arama, `/health`, `/ready`, sıfır-bağımlılıklı Prometheus `/metrics`. Canlı 50K HNSW üzerinde `POST /search` **3.94 ms**, `POST /batch_search(64)` **1,610 QPS**.
 - **Güvenlik:** SHA-256 hash'lenmiş API anahtarları (`hmac.compare_digest`), kapsam (`read`/`write`/`admin`) + sunucu tarafı katı `tenant_id` yalıtımı, Pydantic v2 sonlu-vektör/batch doğrulama, `TokenBucketRateLimiter` (`429`), snapshot path-traversal koruması ve `SanitizingLogFilter`.
-- **Dağıtım & SDK:** Çok aşamalı non-root `Dockerfile`, `docker-compose.yml` ve sıfır-bağımlılıklı Keep-Alive Python HTTP SDK'sı (`RemoteMicroVectorDB`, `RemoteCollection`).
+- **Dağıtım & SDK:** Çok aşamalı non-root `Dockerfile`, `docker-compose.yml` ve sıfır-bağımlılıklı Keep-Alive Python HTTP SDK'sı (`RemoteHisamDB`, `RemoteCollection`).
 
 ---
 
 ## Faz 6 — Büyük Ölçekli Araştırma, Native SIMD, 1M/1536D Benchmarklar ve Görsel Dokümantasyon (`v1.0.0`)
 **Durum:** ✅ Tamamlandı (`90/90` test, `benchmarks/results/benchmark_v1.0.0.json`, `docs/ARCHITECTURE_SCALE_RESEARCH.md` ve `docs/assets/*.png` doğrulandı)
-- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD (`kernels_experimental/mvdb_simd.rs`):** AVX2 + FMA3 + 64-bit POPCNT çekirdeği; `Flat PQ` **4.83x**, `768D Binary` **4.33x**, `IVF-PQ` **2.04x QPS**, `INT8` **1.71x–1.91x** hızlanma (derlenmemiş ortamlarda şeffaf saf NumPy fallback).
+- **Opsiyonel Sıfır-Bağımlılıklı Rust Native SIMD (`kernels_experimental/hisam_simd.rs`):** AVX2 + FMA3 + 64-bit POPCNT çekirdeği; `Flat PQ` **4.83x**, `768D Binary` **4.33x**, `IVF-PQ` **2.04x QPS**, `INT8` **1.71x–1.91x** hızlanma (derlenmemiş ortamlarda şeffaf saf NumPy fallback).
 - **1.000.000 Vektör & 384D / 768D / 1536D Benchmarkları (`benchmarks/run_benchmarks_v10.py`):**
   - `1M × 128D`: `DiskIndex (MMap)` **15.52 MB RAM (-%96.8)** ile **9.56 ms, Recall=1.000**; `HNSW` **0.605 ms (1,640 QPS)**; `IVF-PQ` `500K`'da FAISS `IndexIVFPQ`'yu hem gecikme hem doğrulukta geçti.
   - `OpenAI-1536D (25K)`: `DiskIndex` **0.95 MB RAM (-%99.4), 1.50 ms, Recall=1.000**; `Binary+Rescore` **0.975 ms, Recall=0.884**.
@@ -98,6 +98,6 @@
 | Risk | Etki | Azaltma Stratejisi |
 |---|---|---|
 | Geriye dönük uyumluluk kırılması | Mevcut kullanıcı kodları ve testler bozulur | Tüm mevcut sınıflar, imza adları ve `.npy` v0.2 disk dosyaları otomatik uyumlulukla korunur; tüm fazlarda regresyon testi çalıştırılır. |
-| Aşırı bağımlılık şişmesi | MicroVectorDB'nin hafiflik avantajı kaybolur | Çekirdek **yalnızca `numpy`** gerektirir; `hnswlib`, `fastapi`, `uvicorn` vb. kesinlikle opsiyonel eklentiler olarak tutulur. |
+| Aşırı bağımlılık şişmesi | HisamDB'nin hafiflik avantajı kaybolur | Çekirdek **yalnızca `numpy`** gerektirir; `hnswlib`, `fastapi`, `uvicorn` vb. kesinlikle opsiyonel eklentiler olarak tutulur. |
 | Windows dosya kilitleme / `mmap` sorunları | Windows'ta açık `memmap` dosyası üzerine yazma/silme `PermissionError` verir | `close()` ile açık tutamaç kapatma, atomik değiştirme öncesi mmap serbest bırakma ve Windows üzerinde kapsamlı test. |
 | Python GIL darboğazı | Çok iş parçacıklı Python kodları ölçeklenmez | Ağır hesaplamalar OpenBLAS/NumPy C döngülerinde (GIL serbest) çalıştırılır; kritik filtre/indeks yolları vektörize edilir. |

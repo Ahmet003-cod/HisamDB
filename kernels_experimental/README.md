@@ -1,12 +1,12 @@
 # Donanım Hızlandırmalı Vektör Çekirdekleri (Rust SIMD / AVX2 / POPCNT)
 
-Bu klasör, MicroVectorDB'nin saf NumPy çekirdeklerinin sınırına ulaştığı **PQ ADC lookup**, **asimetrik INT8 dot product** ve **64-bit POPCNT Binary Hamming** işlemlerini tek bir sıfır-bağımlılıklı native kütüphane (`mvdb_simd.rs`) üzerinden **makine kodu / SIMD (AVX2 + FMA3 + POPCNT)** hızına çıkaran opsiyonel çekirdekleri içerir.
+Bu klasör, HisamDB'nin saf NumPy çekirdeklerinin sınırına ulaştığı **PQ ADC lookup**, **asimetrik INT8 dot product** ve **64-bit POPCNT Binary Hamming** işlemlerini tek bir sıfır-bağımlılıklı native kütüphane (`hisam_simd.rs`) üzerinden **makine kodu / SIMD (AVX2 + FMA3 + POPCNT)** hızına çıkaran opsiyonel çekirdekleri içerir.
 
 ---
 
-## 1. Üretim Çekirdeği: `mvdb_simd.rs` (Rust `cdylib` — `v1.0.0`)
+## 1. Üretim Çekirdeği: `hisam_simd.rs` (Rust `cdylib` — `v1.0.0`)
 
-`microvectordb/metrics/native_simd.py` modülü, derlenmiş `mvdb_simd.dll` (Windows), `libmvdb_simd.so` (Linux) veya `libmvdb_simd.dylib` (macOS) kütüphanesini `ctypes` ile otomatik keşfeder ve:
+`hisamdb/metrics/native_simd.py` modülü, derlenmiş `hisam_simd.dll` (Windows), `libhisam_simd.so` (Linux) veya `libhisam_simd.dylib` (macOS) kütüphanesini `ctypes` ile otomatik keşfeder ve:
 
 - `ProductQuantizer.accumulate_adc()` & `IVFPQIndex.search()` (`mvdb_pq_adc_u8` / `mvdb_pq_adc_u16`) — ara `float32` matris kopyası oluşturmadan doğrudan LUT biriktirme,
 - `ScalarQuantizer.compute_distances_asymmetric()` (`mvdb_int8_dot_f32`) — `int8` kodları `float32` kopyasına çevirmeden doğrudan SIMD dot-product,
@@ -18,33 +18,33 @@ işlemlerini otomatik olarak hızlandırır. Derlenmiş kütüphane yoksa sistem
 
 #### Windows (PowerShell):
 ```powershell
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/mvdb_simd.dll
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/hisam_simd.dll
 ```
 
 #### Linux:
 ```bash
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/libmvdb_simd.so
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/libhisam_simd.so
 ```
 
 #### macOS (Apple Silicon / x86-64):
 ```bash
-rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/mvdb_simd.rs -o kernels_experimental/libmvdb_simd.dylib
+rustc --crate-type cdylib -C opt-level=3 -C target-cpu=native kernels_experimental/hisam_simd.rs -o kernels_experimental/libhisam_simd.dylib
 ```
 
 ### Python İçinden Kontrol & Açma/Kapatma
 
 ```python
-import microvectordb
+import hisamdb
 
-print("Native SIMD aktif mi?", microvectordb.is_native_simd_available())
-print("Kütüphane yolu:", microvectordb.native_simd_path())
+print("Native SIMD aktif mi?", hisamdb.is_native_simd_available())
+print("Kütüphane yolu:", hisamdb.native_simd_path())
 
 # Benchmark veya A/B doğrulama için çalışma zamanında aç/kapat:
-microvectordb.set_native_simd_enabled(False)  # Saf NumPy yolu
-microvectordb.set_native_simd_enabled(True)   # Native Rust SIMD yolu
+hisamdb.set_native_simd_enabled(False)  # Saf NumPy yolu
+hisamdb.set_native_simd_enabled(True)   # Native Rust SIMD yolu
 ```
 
-> Ayrıca kütüphaneyi özel bir dizinde tutuyorsanız `MVDB_SIMD_LIB=/yol/mvdb_simd.so` ortam değişkenini verebilirsiniz.
+> Ayrıca kütüphaneyi özel bir dizinde tutuyorsanız `HISAM_SIMD_LIB=/yol/hisam_simd.so` ortam değişkenini verebilirsiniz.
 
 ---
 
@@ -64,4 +64,4 @@ gcc -O3 -mavx2 -mfma -shared -o avx2_kernel.dll avx2_dot_product.c
 cl /O2 /arch:AVX2 /LD avx2_dot_product.c /Fe:avx2_kernel.dll
 ```
 
-> **Not:** `microvectordb` çekirdeğinde `float32` yoğun (dense) matris çarpımları zaten OpenBLAS/MKL AVX2/AVX-512 çekirdeklerini kullanır. `mvdb_simd.rs` ise BLAS'ın desteklemediği **PQ lookup**, **asimetrik INT8** ve **64-bit POPCNT Binary Hamming** işlemlerindeki bellek bant genişliği darboğazını giderir.
+> **Not:** `hisamdb` çekirdeğinde `float32` yoğun (dense) matris çarpımları zaten OpenBLAS/MKL AVX2/AVX-512 çekirdeklerini kullanır. `hisam_simd.rs` ise BLAS'ın desteklemediği **PQ lookup**, **asimetrik INT8** ve **64-bit POPCNT Binary Hamming** işlemlerindeki bellek bant genişliği darboğazını giderir.

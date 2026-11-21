@@ -27,8 +27,8 @@ import psutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import microvectordb
-from microvectordb import AsyncMicroVectorDB, MicroVectorDB, is_hnsw_available
+import hisamdb
+from hisamdb import AsyncMicroVectorDB, MicroVectorDB, is_hnsw_available
 
 
 def make_clustered_data(n: int, d: int, n_topics: int = 64, n_queries: int = 256, seed: int = 42):
@@ -47,7 +47,7 @@ def main() -> None:
     tmp_dir = tempfile.mkdtemp(prefix="mvdb_bench_v06_")
 
     meta = {
-        "microvectordb_version": microvectordb.__version__,
+        "microvectordb_version": hisamdb.__version__,
         "python": platform.python_version(),
         "os": platform.platform(),
         "cpu_logical_cores": os.cpu_count(),

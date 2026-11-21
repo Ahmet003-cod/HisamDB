@@ -1,28 +1,28 @@
 services:
-  microvectordb:
+  hisamdb:
     build:
       context: .
       dockerfile: Dockerfile
-    image: microvectordb:1.0.0
-    container_name: microvectordb-server
+    image: hisamdb:1.0.0
+    container_name: hisamdb-server
     ports:
       - "8000:8000"
     environment:
-      MVDB_HOST: "0.0.0.0"
-      MVDB_PORT: "8000"
-      MVDB_DATA_DIR: "/data"
-      MVDB_SNAPSHOT_DIR: "/data/_snapshots"
-      MVDB_USE_MMAP: "false"
-      MVDB_MAX_WORKERS: "4"
+      HISAM_HOST: "0.0.0.0"
+      HISAM_PORT: "8000"
+      HISAM_DATA_DIR: "/data"
+      HISAM_SNAPSHOT_DIR: "/data/_snapshots"
+      HISAM_USE_MMAP: "false"
+      HISAM_MAX_WORKERS: "4"
       # Üretim için mutlaka güçlü anahtar tanımlayın:
       # Biçim: <raw_veya_sha256_key>:<key_id>:<scopes>[:<tenant_id>] (';' ile ayrılmış)
-      MVDB_REQUIRE_AUTH: "false"
-      # MVDB_API_KEYS: "mvdb_admin_change_me:admin:read,write,admin;mvdb_acme_key:acme:read,write:acme_corp"
-      MVDB_RATE_LIMIT_RPS: "200"
-      MVDB_RATE_LIMIT_BURST: "400"
-      MVDB_MAX_BATCH_SIZE: "10000"
+      HISAM_REQUIRE_AUTH: "false"
+      # HISAM_API_KEYS: "hisam_admin_change_me:admin:read,write,admin;hisam_acme_key:acme:read,write:acme_corp"
+      HISAM_RATE_LIMIT_RPS: "200"
+      HISAM_RATE_LIMIT_BURST: "400"
+      HISAM_MAX_BATCH_SIZE: "10000"
     volumes:
-      - mvdb_data:/data
+      - hisamdb_data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
@@ -32,4 +32,4 @@ services:
       start_period: 10s
 
 volumes:
-  mvdb_data:
+  hisamdb_data:

@@ -1,4 +1,4 @@
-# MicroVectorDB v0.7.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
+# HisamDB v0.7.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
 
 **Ölçüm Tarihi:** 2026-11-21  
 **Ham Sonuç Dosyaları:**  
@@ -29,7 +29,7 @@
 
 ---
 
-## 2. Sürüm Karşılaştırması: MicroVectorDB v0.2.0 → v0.3.0 (Faz 1)
+## 2. Sürüm Karşılaştırması: HisamDB v0.2.0 → v0.3.0 (Faz 1)
 
 Aynı Gaussian veri kümeleri (`seed=42`), aynı boyutlar ve aynı sorgu adedi üzerinde ölçülmüştür:
 
@@ -50,22 +50,22 @@ Aynı Gaussian veri kümeleri (`seed=42`), aynı boyutlar ve aynı sorgu adedi �
 
 ---
 
-## 3. MicroVectorDB v0.3.0 vs FAISS (100.000 × 128D Gerçekçi Kümelemeli Veri)
+## 3. HisamDB v0.3.0 vs FAISS (100.000 × 128D Gerçekçi Kümelemeli Veri)
 
 64 konulu kümelemeli embedding dağılımı (100 sorgu, Top-10, Kosinüs metriği, Exact ground truth'a karşı Recall@10):
 
 | Motor & Yapılandırma | Tip | Build/Add (s) | P50 (ms) | P95 (ms) | QPS | Recall@10 | Vektör RAM (MB) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| **MicroVectorDB v0.3.0 — Flat Float32** | Exact | 0.143 | 5.488 | 11.220 | 157.6 | **1.000** | 49.6 |
+| **HisamDB v0.3.0 — Flat Float32** | Exact | 0.143 | 5.488 | 11.220 | 157.6 | **1.000** | 49.6 |
 | **FAISS 1.13.2 — `IndexFlatIP`** | Exact | 0.027 | 5.418 | 7.587 | 175.1 | **1.000** | 48.8 |
-| **MicroVectorDB v0.3.0 — IVF (`C=128, np=8`)** | ANN (Saf NumPy) | 2.042 | **0.761** | 1.666 | **1,117.4** | **1.000** | 49.6 |
+| **HisamDB v0.3.0 — IVF (`C=128, np=8`)** | ANN (Saf NumPy) | 2.042 | **0.761** | 1.666 | **1,117.4** | **1.000** | 49.6 |
 | **FAISS 1.13.2 — `IndexIVFFlat` (`nlist=128, np=8`)** | ANN (C++) | 0.274 | 0.324 | 0.538 | 3,031.9 | 1.000 | 48.8 |
-| **MicroVectorDB v0.3.0 — HNSW (`M=16, efS=64`)** | ANN (`hnswlib`) | 6.736 | **0.278** | **0.364** | **3,463.3** | **0.975** | 49.6 |
-| **MicroVectorDB v0.3.0 — HNSW (`M=16, efS=128`)** | ANN (`hnswlib`) | 6.283 | **0.411** | **0.495** | **2,377.3** | **0.995** | 49.6 |
+| **HisamDB v0.3.0 — HNSW (`M=16, efS=64`)** | ANN (`hnswlib`) | 6.736 | **0.278** | **0.364** | **3,463.3** | **0.975** | 49.6 |
+| **HisamDB v0.3.0 — HNSW (`M=16, efS=128`)** | ANN (`hnswlib`) | 6.283 | **0.411** | **0.495** | **2,377.3** | **0.995** | 49.6 |
 | **FAISS 1.13.2 — `IndexHNSWFlat` (`M=16, efS=64`)** | ANN (C++) | 5.521 | 0.201 | 0.261 | 4,823.4 | 0.978 | 48.8 |
 
 ### Bilimsel Değerlendirme
-1. **Exact Flat Arama:** MicroVectorDB v0.3.0, OpenBLAS SGEMV + `inv_norms` tasarımı sayesinde C++ `FAISS IndexFlatIP` ile **neredeyse birebir aynı gecikmeye (5.49 ms vs 5.42 ms)** ulaşmakta; buna ek olarak dahili metadata filtreleme, doküman deposu, atomik disk kalıcılığı ve RWLock eşzamanlılığı sunmaktadır.
+1. **Exact Flat Arama:** HisamDB v0.3.0, OpenBLAS SGEMV + `inv_norms` tasarımı sayesinde C++ `FAISS IndexFlatIP` ile **neredeyse birebir aynı gecikmeye (5.49 ms vs 5.42 ms)** ulaşmakta; buna ek olarak dahili metadata filtreleme, doküman deposu, atomik disk kalıcılığı ve RWLock eşzamanlılığı sunmaktadır.
 2. **Saf NumPy IVF:** Hiçbir C++ bağımlılığı olmadan **1,117 QPS (0.761 ms)** ve **1.000 Recall@10** ile Flat aramadan **7.1x daha hızlıdır**. C++ `FAISS IndexIVFFlat` (~2.4x daha hızlı) ile arasındaki fark, Python küme döngüsü ve OpenBLAS küçük-blok çağrı yükünden kaynaklanmaktadır.
 3. **HNSW:** Opsiyonel `hnswlib` entegrasyonu ile **3,463 QPS (P50 = 0.278 ms, Recall@10 = 0.975)** ve `efS=128` ile **2,377 QPS (Recall@10 = 0.995)** elde edilmiştir — tam veritabanı katmanına rağmen çıplak C++ `FAISS IndexHNSWFlat`'ın (0.201 ms) yalnızca ~1.38x gerisindedir.
 
@@ -114,7 +114,7 @@ Aynı 64-konulu kümelemeli 100K × 128D veri seti (100 sorgu, Top-10, Kosinüs 
 
 > **Bilimsel Bulgular:**
 > - **`DiskIndex` (Bölümlenmiş MMap) en çarpıcı sonucu verdi:** Yalnızca **2.35 MB RAM** (%95.3 RAM tasarrufu!) kullanarak **1.227 ms (684.1 QPS)** ve **1.000 Recall@10** ile RAM-içi Flat Float32'den (5.49 ms) ve FAISS `IndexFlatIP`'den (5.42 ms) **4.4x daha hızlı** çalışmaktadır.
-> - **`IVF-PQ` doğrulukta FAISS'i geçti:** Aynı 8-bit `M=16` (16 byte/vektör) bütçesinde MicroVectorDB IVF-PQ, K-Means++ ve birim-küre L2 artık ADC sayesinde **Recall@10 = 0.270** elde ederek FAISS `IndexIVFPQ`'yu (`0.258`) geride bıraktı. (Saf Python/NumPy küme döngüsü C++ SIMD ADC'ye göre ~5.9x daha yavaştır; yüksek recall gereken senaryolarda `DiskIndex` veya `M=32` / float32 rescore önerilir.)
+> - **`IVF-PQ` doğrulukta FAISS'i geçti:** Aynı 8-bit `M=16` (16 byte/vektör) bütçesinde HisamDB IVF-PQ, K-Means++ ve birim-küre L2 artık ADC sayesinde **Recall@10 = 0.270** elde ederek FAISS `IndexIVFPQ`'yu (`0.258`) geride bıraktı. (Saf Python/NumPy küme döngüsü C++ SIMD ADC'ye göre ~5.9x daha yavaştır; yüksek recall gereken senaryolarda `DiskIndex` veya `M=32` / float32 rescore önerilir.)
 
 ### 6.2. Anında İndeks Diskten Yükleme (v0.3.0 Soğuk İnşa vs v0.4.0 CRC32+Epoch Disk Yükleme, 100K × 128D)
 
@@ -162,8 +162,8 @@ v0.4.0'da her sorgu için küme başına ayrı `np.einsum` LUT + 16 döngülü `
 
 | Motor & Yapılandırma | P50 (ms) | P95 (ms) | QPS | Recall@10 | Toplam RAM |
 |---|---:|---:|---:|---:|---:|
-| MicroVectorDB v0.4.0 `IVF-PQ` (`C=128, np=8, M=16`) | 3.446 | 6.277 | 255.1 | **0.270** | 2.48 MB |
-| **MicroVectorDB v0.5.0 `IVF-PQ` (Precomputed LUT + `u16` ADC)** | **2.267** | **3.776** | **412.2 (+%61.6)** | **0.270** | **5.62 MB** *(-%88.7 RAM)* |
+| HisamDB v0.4.0 `IVF-PQ` (`C=128, np=8, M=16`) | 3.446 | 6.277 | 255.1 | **0.270** | 2.48 MB |
+| **HisamDB v0.5.0 `IVF-PQ` (Precomputed LUT + `u16` ADC)** | **2.267** | **3.776** | **412.2 (+%61.6)** | **0.270** | **5.62 MB** *(-%88.7 RAM)* |
 | FAISS `1.13.2` `IndexIVFPQ` (`nlist=128, np=8, M=16`, C++ SIMD) | 0.636 | 0.803 | 1,625.4 | 0.258 | 2.29 MB |
 
 > **Bilimsel Değerlendirme:** Saf NumPy katmanında **P50 %34.2 düşmüş (3.45 → 2.27 ms)** ve **QPS +%61.6 artmıştır (255 → 412 QPS)**; doğrulukta FAISS'i geçmeye devam etmektedir (`0.270` vs `0.258`). Kalan fark, NumPy'ın ara `(M, n_c)` float32 dizisini bellekte oluşturması ile C++ SIMD yazmaç akümülasyonu arasındaki fiziksel donanım farkından kaynaklanmakta olup Faz 6'da opsiyonel AVX2 C çekirdeği ile kapatılacaktır.
@@ -210,7 +210,7 @@ v0.3.0'da tek bir kayıt silindiğinde tüm `.mvdbvec` dosyası ve SQLite tablos
 
 > **Veri-Odaklı Mimari Karar:** Bu gerçek ölçümlere dayanarak `batch_search(..., max_workers=None)` otomatik olarak **HNSW** için çok çekirdekli iş parçacığı havuzunu (**18,765 QPS**), **Flat / IVF / IVF-PQ / DiskIndex** için sıfır GIL çekişmeli tek-işçi yolunu (**1,771–2,652 QPS**) ve `batch_hybrid_search` için harici `reranker` varsa paralel havuzu seçer. Uzman kullanıcılar `max_workers` ile bu seçimi dilediğinde geçersiz kılabilir.
 
-### 8.2. `AsyncMicroVectorDB` + `asyncio.gather()` Eşzamanlılığı (100K × 128D HNSW)
+### 8.2. `AsyncHisamDB` + `asyncio.gather()` Eşzamanlılığı (100K × 128D HNSW)
 
 | Senaryo | Toplam Duvar Süresi | Toplam QPS | İstek P50 (ms) | İstek P95 (ms) |
 |---|---:|---:|---:|---:|
@@ -229,7 +229,7 @@ v0.3.0'da tek bir kayıt silindiğinde tüm `.mvdbvec` dosyası ve SQLite tablos
 
 ## 9. Faz 5 (`v0.7.0`): Üretim FastAPI + Uvicorn REST Sunucusu & Keep-Alive SDK (Uçtan Uca HTTP)
 
-Canlı yerel Uvicorn sunucusu (`SHA-256 Bearer Auth` + Pydantic v2 doğrulama + Prometheus middleware etkin, `RemoteMicroVectorDB` HTTP/1.1 Keep-Alive SDK, Windows TCP loopback):
+Canlı yerel Uvicorn sunucusu (`SHA-256 Bearer Auth` + Pydantic v2 doğrulama + Prometheus middleware etkin, `RemoteHisamDB` HTTP/1.1 Keep-Alive SDK, Windows TCP loopback):
 
 - **50K × 128D HNSW HTTP REST Toplu Yükleme (5K JSON batch):** `8.01 s` (**6,243 vektör/sn** — JSON + SQLite + `.mvdbvec` + HNSW inşası dahil)
 
