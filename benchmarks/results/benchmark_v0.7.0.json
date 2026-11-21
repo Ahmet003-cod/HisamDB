@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "microvectordb_version": "0.7.0",
+    "python": "3.11.9",
+    "os": "Windows-10-10.0.26300-SP0",
+    "cpu_logical_cores": 12,
+    "ram_total_gb": 15.73,
+    "numpy": "2.0.2",
+    "hnswlib": true,
+    "timestamp": "2026-11-21 17:13:51"
+  },
+  "http_benchmarks": [
+    {
+      "scenario": "HTTP POST /search (50K HNSW, 1 client)",
+      "clients": 1,
+      "p50_ms": 3.944,
+      "p95_ms": 6.45,
+      "qps": 233.2
+    },
+    {
+      "scenario": "HTTP POST /batch_search(64) (50K HNSW)",
+      "clients": 1,
+      "p50_ms": 40.639,
+      "p95_ms": 44.283,
+      "qps": 1610.2
+    },
+    {
+      "scenario": "HTTP POST /hybrid_search (10K HNSW+BM25+RRF, 1 client)",
+      "clients": 1,
+      "p50_ms": 5.677,
+      "p95_ms": 7.468,
+      "qps": 173.7
+    },
+    {
+      "scenario": "HTTP POST /delete (10K Kalıcı Tombstone+WAL)",
+      "clients": 1,
+      "p50_ms": 5.542,
+      "p95_ms": 6.921,
+      "qps": 182.5
+    },
+    {
+      "scenario": "HTTP POST /search (4 paralel istemci, 50K HNSW)",
+      "clients": 4,
+      "p50_ms": 14.344,
+      "p95_ms": 21.946,
+      "qps": 256.1
+    },
+    {
+      "scenario": "HTTP POST /search (8 paralel istemci, 50K HNSW)",
+      "clients": 8,
+      "p50_ms": 27.252,
+      "p95_ms": 38.54,
+      "qps": 278.4
+    }
+  ]
+}

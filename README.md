@@ -1,19 +1,24 @@
 # MicroVectorDB 🚀
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
 [![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](requirements.txt)
 
-**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG yeteneklerine sahip, asenkron/çok çekirdekli, WAL korumalı ve yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
+**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG yeteneklerine sahip, asenkron/çok çekirdekli, WAL korumalı, gömülü veya üretim FastAPI REST sunucusu olarak çalışabilen ve yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
 
 > **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
 ---
 
-## ✨ Neler Sunar? (v0.6.0 — Doğrulanmış Özellikler)
+## ✨ Neler Sunar? (v0.7.0 — Doğrulanmış Özellikler)
 
-- **Sıfır Ağır Çekirdek Bağımlılığı:** Çekirdek yalnızca `numpy>=1.20` gerektirir (NumPy 1.x ve 2.x tam uyumlu). Opsiyonel eklentiler: HNSW için `pip install ".[hnsw]"`, hızlı JSON/metadata açılışı için `pip install ".[fast]"` (`orjson`) veya hepsi için `pip install ".[all]"`.
+- **Sıfır Ağır Çekirdek Bağımlılığı:** Çekirdek yalnızca `numpy>=1.20` gerektirir (NumPy 1.x ve 2.x tam uyumlu). Opsiyonel eklentiler: HNSW için `pip install ".[hnsw]"`, hızlı JSON/metadata açılışı için `pip install ".[fast]"` (`orjson`), üretim REST sunucusu için `pip install ".[server]"` (`fastapi` + `uvicorn` + `pydantic`) veya hepsi için `pip install ".[all]"`.
+- **Üretim REST Sunucusu, Güvenlik, Gözlemlenebilirlik & Python SDK (`v0.7.0`):**
+  - **FastAPI + Uvicorn Sunucusu (`microvectordb-server`):** Tam `/v1/collections` CRUD, Dense/Batch/Sparse/Hybrid/RAG Context, `explain`, `compact`, `rebuild`, `checkpoint`, güvenli `/v1/admin/snapshot`, `/health`, `/ready` ve sıfır bağımlılıklı Prometheus **`/metrics`**.
+  - **Güvenlik & Rate Limiting:** SHA-256 hash'lenmiş API anahtarları (`hmac.compare_digest`), kapsam (`read`/`write`/`admin`) + sunucu tarafı katı **`tenant_id` yalıtımı**, kimlik/IP bazlı `TokenBucketRateLimiter` (`HTTP 429`), Pydantic v2 sonlu-vektör doğrulaması ve gizli anahtar maskeleyen loglama.
+  - **Sıfır-Bağımlılıklı Python HTTP SDK (`RemoteMicroVectorDB`):** Standart `http.client` Keep-Alive istemcisi (canlı 50K HNSW üzerinde tekil `POST /search` **3.94 ms**, `POST /batch_search(64)` **1,610 QPS**).
+  - **Docker Hazır:** Çok aşamalı non-root `Dockerfile` (`HEALTHCHECK` dahil) ve `docker-compose.yml`. Tam rehber: [`docs/API_SERVER.md`](docs/API_SERVER.md).
 - **Yüksek Eşzamanlılık, Async İstemci & Bloklamayan Arka Plan İşçileri (`v0.6.0`):**
   - **Çok Çekirdekli Paralel Toplu Arama (`batch_search` & `batch_hybrid_search`):** 100K×128D HNSW üzerinde `workers=8` ile **18,765 QPS (2.45x hızlanma)**; GIL/OpenBLAS ölçümlerine dayalı otomatik işçi yönlendirmesi.
   - **Standart `asyncio` İstemcisi (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):** Sıfır ek bağımlılıkla `async with` ve `asyncio.gather()` fan-out (**3,287 QPS** @ 100K HNSW).
@@ -81,15 +86,16 @@ v0.4.0 benchmark denetiminde tespit edilen ve üretim kullanımını etkileyen *
 
 ---
 
-## 📊 Doğrulanmış Performans Sonuçları (v0.6.0)
+## 📊 Doğrulanmış Performans Sonuçları (v0.7.0)
 
 *Ölçüm ortamı: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS 0.3.27), FAISS 1.13.2. Tüm ham veriler için [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) dosyasına bakın.*
 
-### v0.2.0 → v0.6.0 Evrim Özeti
+### v0.2.0 → v0.7.0 Evrim Özeti
 
-| Senaryo | Eski (v0.2 / v0.3 / v0.4) | v0.6.0 | İyileşme |
+| Senaryo | Eski (v0.2 / v0.3 / v0.4) | v0.7.0 | İyileşme |
 |---|---:|---:|---:|
 | **100K×128D Paralel `batch_search` (HNSW, `w=8`)** | 7,659 QPS *(tek işçi)* | **18,765 QPS (13.64 ms / 256 sorgu)** | **2.45x paralel ölçeklenme** |
+| **50K×128D Canlı HTTP REST (`POST /search` / `/batch_search`)** | Yoktu | **3.94 ms (233 QPS) / 1,610 QPS (batch 64)** | **Bearer Auth + Prometheus dahil** |
 | **50K×128D Arka Plan `rebuild_index_async()` Okuyucu Max** | 1,048 ms tam bloklama | **P50=0.363 ms · Max=3.99 ms (2,212 okuma)** | **262x düşük kesinti (sıfır duraklama)** |
 | **10K×128D Tekil / Yoğun Silme (`auto_compact_async`)** | 181.90 ms *(v0.3)* / 49.89 ms *(sync)* | **0.403 ms tekil / 0.821 ms eşik silme** | **451.4x / 60.8x hızlı** |
 | **100K×128D %10 Filtreli Kosinüs (Flat / HNSW+Opt)** | 59.32 ms *(v0.2)* | **2.47 ms / 0.48 ms** | **24.0x / 123.8x hızlı** |
@@ -136,7 +142,10 @@ pip install ".[hnsw]"
 # Opsiyonel hızlı orjson metadata yükleyici ile:
 pip install ".[fast]"
 
-# Tüm performans eklentileri (hnswlib + orjson):
+# Opsiyonel üretim REST sunucusu (FastAPI + Uvicorn + Pydantic):
+pip install ".[server]"
+
+# Tüm performans ve sunucu eklentileri (hnswlib + orjson + server):
 pip install ".[all]"
 
 # Geliştirme ve benchmark araçları ile:
@@ -255,7 +264,24 @@ async def main():
 asyncio.run(main())
 ```
 
-### 4. Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
+### 4. Üretim REST Sunucusu, Docker ve Sıfır-Bağımlılıklı Python SDK (`v0.7.0`)
+
+```bash
+# Sunucuyu başlat (veya: docker compose up -d --build):
+MVDB_API_KEYS="mvdb_admin_key:admin:read,write,admin" microvectordb-server --host 0.0.0.0 --port 8000
+```
+
+```python
+from microvectordb import RemoteMicroVectorDB
+
+with RemoteMicroVectorDB("http://127.0.0.1:8000", api_key="mvdb_admin_key") as db:
+    coll = db.get_or_create_collection("docs", dimension=4, metric="cosine")
+    coll.add(ids=["1"], vectors=[[1, 0, 0, 0]], documents=["İstanbul sunucu kılavuzu"])
+    hits = coll.hybrid_search(query_vector=[1, 0, 0, 0], query_text="İstanbul", limit=3)
+    print(hits[0].id, round(hits[0].score, 4))
+```
+
+### 5. Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
 
 ```python
 import microvectordb
@@ -274,7 +300,7 @@ client.close()
 ```text
 MicroVectorDB/
 ├── microvectordb/
-│   ├── __init__.py             # Ana paket arayüzü (v0.6.0)
+│   ├── __init__.py             # Ana paket arayüzü (v0.7.0)
 │   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient, Snapshot & Multi-Tenant
 │   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, Hybrid/RAG, Tombstone, WAL, BG)
 │   ├── types.py                # QueryPlan, QueryResult, SearchResultItem ve özel hatalar
@@ -285,6 +311,7 @@ MicroVectorDB/
 │   ├── indexes/                # IVF, Precomputed IVF-PQ, DiskIndex + Streaming, HNSW, QueryOptimizer
 │   ├── search/                 # Vektörize Okapi BM25, SparseVectorIndex, RRF/Weighted Füzyon, RAG & Multi-Tenant
 │   ├── concurrency/            # RWLock, BatchQueryExecutor, BackgroundTaskManager, AsyncMicroVectorDB
+│   ├── api/                    # FastAPI REST sunucusu, SHA-256 Auth/Tenant, Rate Limiter, Prometheus /metrics, HTTP SDK
 │   ├── distance.py             # v0.2.0 uyumluluk cephesi -> metrics/
 │   └── ivf_index.py            # v0.2.0 uyumluluk cephesi -> indexes/ivf.py
 ├── benchmarks/
@@ -292,11 +319,15 @@ MicroVectorDB/
 │   ├── run_benchmarks_v04.py   # Faz 2 PQ / IVF-PQ / DiskIndex / Reload / Optimizer benchmarkı
 │   ├── run_benchmarks_v05.py   # Faz 3 Sorun #1/#2/#3 + Hibrit/BM25/WAL/Tombstone/Snapshot benchmarkı
 │   ├── run_benchmarks_v06.py   # Faz 4 Paralel Batch / Async / Bloklamayan Arka Plan Bakım benchmarkı
+│   ├── run_benchmarks_v07.py   # Faz 5 Canlı Uvicorn HTTP REST & Keep-Alive SDK benchmarkı
 │   └── results/                # Kayıtlı JSON ve CSV ölçüm çıktıları
 ├── docs/
+│   ├── API_SERVER.md           # REST API, güvenlik, Prometheus, SDK ve Docker dağıtım rehberi
 │   └── RELIABILITY.md          # Açık ACID, WAL dayanıklılık ve eşzamanlılık sözleşmesi
-├── tests/                      # 81/81 birim, bütünlük, WAL, hibrit/RAG, async ve 12-thread stres testi
-├── examples/                   # 6 çalışan örnek (quickstart, filtre, RAG, benchmark, hibrit+WAL, async)
+├── tests/                      # 86/86 birim, bütünlük, WAL, hibrit/RAG, async, stres ve REST API testi
+├── examples/                   # 7 çalışan örnek (quickstart..async..REST sunucu + SDK)
+├── Dockerfile                  # Çok aşamalı non-root üretim imajı (HEALTHCHECK dahil)
+├── docker-compose.yml          # Kalıcı hacimli ve ortam yapılandırmalı Compose tanımı
 ├── kernels_experimental/       # Deneysel AVX2 C/SIMD çekirdeği
 ├── ARCHITECTURE_AUDIT.md       # v0.2.0 derinlemesine mimari ve performans denetimi
 ├── BENCHMARK_REPORT.md         # Bilimsel benchmark raporu ve rakiplerle kıyas
@@ -309,9 +340,10 @@ MicroVectorDB/
 ## 🗺️ Dokümantasyon ve Yol Haritası
 
 - [`ARCHITECTURE_AUDIT.md`](ARCHITECTURE_AUDIT.md) — Mevcut mimari analizi, 10 performans darboğazı ve güvenlik denetimi
-- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM, FAISS, Hibrit RAG ve Eşzamanlılık kıyasları
+- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM, FAISS, Hibrit RAG, Eşzamanlılık ve HTTP REST kıyasları
+- [`docs/API_SERVER.md`](docs/API_SERVER.md) — FastAPI REST sunucusu, API anahtarı/kiracı güvenliği, `/metrics`, Python SDK ve Docker
 - [`docs/RELIABILITY.md`](docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
-- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 ✅ → Faz 4 ✅ → Faz 5 (FastAPI Üretim Sunucusu) → Faz 6 (1M SIFT/GloVe & Native SIMD)
+- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 ✅ → Faz 4 ✅ → Faz 5 ✅ → Faz 6 (1M SIFT/GloVe & Native SIMD)
 - [`CHANGELOG.md`](CHANGELOG.md) — Detaylı sürüm notları
 
 ---
@@ -319,7 +351,7 @@ MicroVectorDB/
 ## 🧪 Test ve Benchmark Çalıştırma
 
 ```bash
-# Tüm testler (81/81):
+# Tüm testler (86/86):
 python -m unittest discover -s tests -v
 
 # Bilimsel benchmark paketleri (JSON + CSV üretir):
@@ -327,10 +359,12 @@ python benchmarks/run_benchmarks.py
 python benchmarks/run_benchmarks_v04.py
 python benchmarks/run_benchmarks_v05.py
 python benchmarks/run_benchmarks_v06.py
+python benchmarks/run_benchmarks_v07.py
 
 # Uçtan uca demolar:
 python examples/05_hybrid_rag_and_reliability.py
 python examples/06_async_and_parallel.py
+python examples/07_rest_server_and_sdk.py
 ```
 
 ---

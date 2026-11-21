@@ -2,6 +2,23 @@
 
 Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [0.7.0] - 2026-11-21 (Faz 5 — Üretim FastAPI REST Sunucusu, Güvenlik, Prometheus `/metrics`, Python SDK & Docker)
+
+### Eklenenler
+- **Üretim FastAPI REST Sunucusu (`microvectordb/api/server.py`, `microvectordb-server` CLI):**
+  - Lifespan yönetimli `AsyncMicroVectorDB` çekirdeği, opsiyonel `pip install ".[server]"` eklentisi (çekirdek hâlâ yalnızca `numpy>=1.20`!).
+  - Tam `/v1/collections` REST API: koleksiyon yönetimi, `add`, `documents` (RAG), `upsert`, `get`, `delete`, `search`, `batch_search`, `sparse_search`, `hybrid_search`, `batch_hybrid_search`, `retrieve_context`, `explain`, `compact`, `rebuild`, `checkpoint` ve path-traversal korumalı `/v1/admin/snapshot`.
+  - Canlı Uvicorn TCP loopback benchmarkı (Bearer Auth etkin, 50K HNSW): tekil `POST /search` **3.94 ms (233 QPS)**, `POST /batch_search(64)` **1,610 QPS**, `POST /hybrid_search` (10K) **5.68 ms**, `POST /delete` **5.54 ms**.
+- **Güvenlik & Hız Sınırlama (`microvectordb/api/security.py`, `schemas.py`):**
+  - SHA-256 hash'lenmiş API anahtarları (`sha256:<hex>` desteği + sabit zamanlı `hmac.compare_digest`), kapsam (`read`/`write`/`admin`) ve sunucu tarafı **katı Multi-Tenant anahtar yalıtımı** (çapraz kiracı okuma/silme/upsert saldırılarına karşı korumalı).
+  - Kimlik/IP bazlı thread-safe **`TokenBucketRateLimiter`** (`HTTP 429` + `Retry-After` / `X-RateLimit-Remaining`).
+  - Katı Pydantic v2 şema doğrulaması (sonlu float / `NaN`/`Inf` reddi, `max_batch_size` `413` koruması) ve Bearer/anahtar maskeleyen **`SanitizingLogFilter`**.
+- **Gözlemlenebilirlik (`microvectordb/api/metrics.py`):**
+  - `/health`, `/ready` probları ve sıfır bağımlılıklı Prometheus metin dışa aktarımı **`/metrics`** (`mvdb_http_requests_total`, gecikme histogramı, `mvdb_rate_limited_total`, `mvdb_auth_failures_total`, `mvdb_vectors_total`, `mvdb_tombstones_total`, `mvdb_vector_ram_bytes`).
+- **Sıfır-Bağımlılıklı Python HTTP SDK (`RemoteMicroVectorDB`, `RemoteCollection`):**
+  - Standart kütüphane `http.client` tabanlı thread-safe **HTTP/1.1 Keep-Alive** istemcisi (`requests`/`httpx` gerekmez).
+- **Konteyner & Dokümantasyon:** Çok aşamalı non-root `Dockerfile` (dahili `HEALTHCHECK`), `docker-compose.yml`, `.dockerignore`, [`docs/API_SERVER.md`](docs/API_SERVER.md), `examples/07_rest_server_and_sdk.py`, `benchmarks/run_benchmarks_v07.py` ve 5 yeni kapsamlı REST/güvenlik/canlı-sunucu testi (toplam **86/86 test**).
+
 ## [0.6.0] - 2026-11-21 (Faz 4 — Yüksek Eşzamanlılık, Async İstemci, Paralel Batch ve Bloklamayan Arka Plan İşçileri)
 
 ### Eklenenler

@@ -74,15 +74,16 @@
 
 ---
 
-## Faz 5 — Üretim Sunucusu ve REST/gRPC API (`v0.7.0`)
-**Durum:** Sıradaki Aşama
-- **FastAPI Sunucusu:** Koleksiyon yönetimi, CRUD, toplu işlemler, hibrit/filtreli arama, `/health`, `/ready`, Prometheus `/metrics`.
-- **Güvenlik:** Hash'lenmiş API anahtarları, kapsam/tenant bazlı yetkilendirme, Pydantic girdi doğrulama, hız sınırlama (rate limiting), hassas verileri maskeleyen loglama.
-- **Dağıtım:** Çok aşamalı `Dockerfile`, `docker-compose.yml` ve istemci SDK'sı.
+## Faz 5 — Üretim Sunucusu, Güvenlik, Gözlemlenebilirlik ve HTTP SDK (`v0.7.0`)
+**Durum:** ✅ Tamamlandı (`86/86` test, `benchmarks/results/benchmark_v0.7.0.json` ve `docs/API_SERVER.md` doğrulandı)
+- **FastAPI + Uvicorn REST Sunucusu (`microvectordb-server`):** Koleksiyon yönetimi, CRUD, toplu işlemler, hibrit/RAG/filtreli arama, `/health`, `/ready`, sıfır-bağımlılıklı Prometheus `/metrics`. Canlı 50K HNSW üzerinde `POST /search` **3.94 ms**, `POST /batch_search(64)` **1,610 QPS**.
+- **Güvenlik:** SHA-256 hash'lenmiş API anahtarları (`hmac.compare_digest`), kapsam (`read`/`write`/`admin`) + sunucu tarafı katı `tenant_id` yalıtımı, Pydantic v2 sonlu-vektör/batch doğrulama, `TokenBucketRateLimiter` (`429`), snapshot path-traversal koruması ve `SanitizingLogFilter`.
+- **Dağıtım & SDK:** Çok aşamalı non-root `Dockerfile`, `docker-compose.yml` ve sıfır-bağımlılıklı Keep-Alive Python HTTP SDK'sı (`RemoteMicroVectorDB`, `RemoteCollection`).
 
 ---
 
 ## Faz 6 — Büyük Ölçekli Araştırma, SIMD/Native ve Rakip Benchmark (`v1.0.0`)
+**Durum:** Sıradaki Aşama
 - **Standart Veri Kümeleri:** SIFT1M, GloVe, BEIR üzerinde 10K / 100K / 500K / 1M ölçekte ve 128 / 384 / 768 / 1024 / 1536 boyutlarda Qdrant, FAISS, ChromaDB, LanceDB ve Milvus ile eşit donanım & eşit Recall@10 benchmarkları (`BENCHMARK_REPORT.md` + grafikler).
 - **Native SIMD / C / Rust Uzantısı Değerlendirmesi:** `kernels_experimental/avx2_dot_product.c` tabanlı toplu SIMD / INT8 VNNI / Binary POPCNT çekirdeklerinin NumPy/OpenBLAS'a karşı gerçek kazanım analizi.
 - **GPU ve Dağıtık Mimari Araştırması:** Sharding, replikasyon ve opsiyonel CUDA/CuPy fizibilite raporu.

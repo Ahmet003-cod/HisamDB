@@ -1,4 +1,4 @@
-# MicroVectorDB v0.6.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
+# MicroVectorDB v0.7.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
 
 **Ölçüm Tarihi:** 2026-11-21  
 **Ham Sonuç Dosyaları:**  
@@ -6,7 +6,8 @@
 - Faz 2 (`v0.4.0`): [`benchmarks/results/benchmark_v0.4.0.json`](benchmarks/results/benchmark_v0.4.0.json) · [`benchmarks/results/benchmark_v0.4.0.csv`](benchmarks/results/benchmark_v0.4.0.csv)  
 - Faz 3 (`v0.5.0`): [`benchmarks/results/benchmark_v0.5.0.json`](benchmarks/results/benchmark_v0.5.0.json) · [`benchmarks/results/benchmark_v0.5.0.csv`](benchmarks/results/benchmark_v0.5.0.csv)  
 - Faz 4 (`v0.6.0`): [`benchmarks/results/benchmark_v0.6.0.json`](benchmarks/results/benchmark_v0.6.0.json) · [`benchmarks/results/benchmark_v0.6.0.csv`](benchmarks/results/benchmark_v0.6.0.csv)  
-**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py`, `run_benchmarks_v04.py`, `run_benchmarks_v05.py` ve `run_benchmarks_v06.py`
+- Faz 5 (`v0.7.0`): [`benchmarks/results/benchmark_v0.7.0.json`](benchmarks/results/benchmark_v0.7.0.json) · [`benchmarks/results/benchmark_v0.7.0.csv`](benchmarks/results/benchmark_v0.7.0.csv)  
+**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py`, `run_benchmarks_v04.py`, `run_benchmarks_v05.py`, `run_benchmarks_v06.py` ve `run_benchmarks_v07.py`
 
 ---
 
@@ -223,3 +224,22 @@ v0.3.0'da tek bir kayıt silindiğinde tüm `.mvdbvec` dosyası ve SQLite tablos
 | **50K × 128D IVF `rebuild_index_async()` (`1,047.6 ms` inşa)** | İnşa sırasında **2,212 canlı okuma** tamamlandı: Okuyucu **P50 = 0.363 ms**, **P95 = 1.118 ms**, **Max = 3.99 ms** | Senkron `1,048 ms` tam duraklamaya göre **262x düşük azami gecikme (sıfır kesinti!)** |
 | **10K Yoğun Silme (25×100): `auto_compact_async=False`** | P50 = `0.440 ms`, %25 eşiğini tetikleyen silme = **`49.886 ms`** | Senkron compaction çağıranı 50 ms bloke eder |
 | **10K Yoğun Silme (25×100): `auto_compact_async=True`** | P50 = `0.486 ms`, %25 eşiğini tetikleyen silme = **`0.821 ms`**, Max = `1.993 ms`, Son Tombstone = `0` | **60.8x düşük kuyruk gecikmesi!** |
+
+---
+
+## 9. Faz 5 (`v0.7.0`): Üretim FastAPI + Uvicorn REST Sunucusu & Keep-Alive SDK (Uçtan Uca HTTP)
+
+Canlı yerel Uvicorn sunucusu (`SHA-256 Bearer Auth` + Pydantic v2 doğrulama + Prometheus middleware etkin, `RemoteMicroVectorDB` HTTP/1.1 Keep-Alive SDK, Windows TCP loopback):
+
+- **50K × 128D HNSW HTTP REST Toplu Yükleme (5K JSON batch):** `8.01 s` (**6,243 vektör/sn** — JSON + SQLite + `.mvdbvec` + HNSW inşası dahil)
+
+| HTTP REST Senaryosu | İstemci | P50 (ms) | P95 (ms) | QPS (sorgu/sn) |
+|---|---:|---:|---:|---:|
+| **`POST /v1/collections/{name}/search` (50K HNSW)** | 1 | **3.944** | 6.450 | **233.2** |
+| **`POST /v1/collections/{name}/batch_search(64)` (50K HNSW)** | 1 | **40.639** *(64 sorgu)* | 44.283 | **1,610.2** |
+| **`POST /v1/collections/{name}/hybrid_search` (10K HNSW+BM25+RRF)** | 1 | **5.677** | 7.468 | **173.7** |
+| **`POST /v1/collections/{name}/delete` (10K Kalıcı Tombstone+WAL)** | 1 | **5.542** | 6.921 | **182.5** |
+| **`POST /v1/collections/{name}/search` (4 paralel istemci, 50K HNSW)** | 4 | 14.344 | 21.946 | **256.1** |
+| **`POST /v1/collections/{name}/search` (8 paralel istemci, 50K HNSW)** | 8 | 27.252 | 38.540 | **278.4** |
+
+> **Bilimsel Değerlendirme:** Gömülü çekirdek araması `~0.3 ms` sürerken uçtan uca tekil HTTP isteği `3.94 ms` sürmektedir (farkın ~3.6 ms'si TCP loopback + FastAPI/Pydantic v2 JSON ayrıştırma + SHA-256 Bearer doğrulamasından gelir). Toplu sorgular için `/batch_search` HTTP protokol yükünü amorti ederek tek bağlantıda **1,610 QPS**'e ulaşır.

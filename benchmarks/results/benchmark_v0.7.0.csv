@@ -1,0 +1,7 @@
+scenario,clients,p50_ms,p95_ms,qps
+"HTTP POST /search (50K HNSW, 1 client)",1,3.944,6.45,233.2
+HTTP POST /batch_search(64) (50K HNSW),1,40.639,44.283,1610.2
+"HTTP POST /hybrid_search (10K HNSW+BM25+RRF, 1 client)",1,5.677,7.468,173.7
+HTTP POST /delete (10K Kalıcı Tombstone+WAL),1,5.542,6.921,182.5
+"HTTP POST /search (4 paralel istemci, 50K HNSW)",4,14.344,21.946,256.1
+"HTTP POST /search (8 paralel istemci, 50K HNSW)",8,27.252,38.54,278.4

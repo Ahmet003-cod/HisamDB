@@ -5,6 +5,11 @@ Yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG destekli,
 WAL korumalı ve geliştirici dostu Python Vektör Veritabanı.
 """
 
+from microvectordb.api.client import (
+    RemoteAPIError,
+    RemoteCollection,
+    RemoteMicroVectorDB,
+)
 from microvectordb.client import (
     BaseClient,
     EphemeralClient,
@@ -71,10 +76,13 @@ from microvectordb.types import (
     VectorDBError,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __all__ = [
     "MicroVectorDB",
     "AsyncMicroVectorDB",
+    "RemoteMicroVectorDB",
+    "RemoteCollection",
+    "RemoteAPIError",
     "PersistentClient",
     "EphemeralClient",
     "BaseClient",
