@@ -13,6 +13,7 @@ Sıfır ek bağımlılıklı Sparse Vector ve Okapi BM25 ters indeks motoru.
 
 import math
 import re
+import threading
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 import numpy as np
@@ -66,8 +67,9 @@ class BM25Index:
         self._doc_terms: Dict[int, List[str]] = {}
         self._total_len: int = 0
 
-        # Tembel vektörize NumPy BM25 önbelleği (25x-40x hızlanma: 0 Python doküman döngüsü!)
+        # Tembel vektörize NumPy BM25 önbelleği (25x-40x hızlanma, double-checked thread-safe!)
         self._compiled: bool = False
+        self._compile_lock = threading.Lock()
         self._max_slot: int = -1
         self._compiled_postings: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
 
@@ -134,46 +136,49 @@ class BM25Index:
     def _ensure_compiled(self) -> None:
         """
         Okapi BM25 terim ağırlıklarını (sorgudan bağımsız w_{t,d} = IDF * TF*(k1+1)/(TF + dl_norm))
-        bir kez vektörize NumPy dizilerine derler.
+        thread-safe biçimde bir kez vektörize NumPy dizilerine derler.
         """
         if self._compiled:
             return
-        self._compiled_postings.clear()
-        n_docs = len(self._doc_lengths)
-        if n_docs == 0:
-            self._max_slot = -1
+        with self._compile_lock:
+            if self._compiled:
+                return
+            self._compiled_postings.clear()
+            n_docs = len(self._doc_lengths)
+            if n_docs == 0:
+                self._max_slot = -1
+                self._compiled = True
+                return
+
+            max_slot = max(self._doc_lengths.keys())
+            self._max_slot = max_slot
+            avgdl = self._total_len / max(1, n_docs)
+            k1 = self.k1
+            b = self.b
+            k1_p1 = np.float32(k1 + 1.0)
+
+            dl_norm = np.empty(max_slot + 1, dtype=np.float32)
+            slots_all = np.fromiter(self._doc_lengths.keys(), dtype=np.int32, count=n_docs)
+            dls_all = np.fromiter(self._doc_lengths.values(), dtype=np.float32, count=n_docs)
+            dl_norm[slots_all] = np.float32(k1) * (
+                np.float32(1.0 - b) + np.float32(b / avgdl) * dls_all
+            )
+
+            compiled: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+            for term, postings in self._postings.items():
+                df = len(postings)
+                if df == 0:
+                    continue
+                idf = math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5))
+                if idf <= 0.0:
+                    continue
+                p_slots = np.fromiter(postings.keys(), dtype=np.int32, count=df)
+                p_tfs = np.fromiter(postings.values(), dtype=np.float32, count=df)
+                p_weights = (np.float32(idf) * k1_p1 * p_tfs) / (p_tfs + dl_norm[p_slots])
+                compiled[term] = (p_slots, p_weights.astype(np.float32, copy=False))
+
+            self._compiled_postings = compiled
             self._compiled = True
-            return
-
-        max_slot = max(self._doc_lengths.keys())
-        self._max_slot = max_slot
-        avgdl = self._total_len / max(1, n_docs)
-        k1 = self.k1
-        b = self.b
-        k1_p1 = np.float32(k1 + 1.0)
-
-        dl_norm = np.empty(max_slot + 1, dtype=np.float32)
-        slots_all = np.fromiter(self._doc_lengths.keys(), dtype=np.int32, count=n_docs)
-        dls_all = np.fromiter(self._doc_lengths.values(), dtype=np.float32, count=n_docs)
-        dl_norm[slots_all] = np.float32(k1) * (
-            np.float32(1.0 - b) + np.float32(b / avgdl) * dls_all
-        )
-
-        compiled: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
-        for term, postings in self._postings.items():
-            df = len(postings)
-            if df == 0:
-                continue
-            idf = math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5))
-            if idf <= 0.0:
-                continue
-            p_slots = np.fromiter(postings.keys(), dtype=np.int32, count=df)
-            p_tfs = np.fromiter(postings.values(), dtype=np.float32, count=df)
-            p_weights = (np.float32(idf) * k1_p1 * p_tfs) / (p_tfs + dl_norm[p_slots])
-            compiled[term] = (p_slots, p_weights.astype(np.float32, copy=False))
-
-        self._compiled_postings = compiled
-        self._compiled = True
 
     def search(
         self,

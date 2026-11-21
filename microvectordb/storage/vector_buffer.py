@@ -12,6 +12,7 @@ Avantajlar:
 - `float32` ve `float16` depolama tiplerini ve salt-okunur `mmap` bağlamayı destekler.
 """
 
+import threading
 from typing import Optional, Sequence, Tuple, Union
 import numpy as np
 
@@ -33,6 +34,7 @@ class VectorBuffer:
         self._capacity: int = 0
         self._is_mmap: bool = False
         self._norms_ready: bool = True
+        self._norm_lock = threading.Lock()
 
         if initial_capacity > 0 and self._dim > 0:
             self._allocate(initial_capacity)
@@ -50,17 +52,20 @@ class VectorBuffer:
         self._norms_ready = True
 
     def _ensure_norms(self) -> None:
-        """MMap modunda ertelenmiş normları yalnızca ilk ihtiyaç anında hesaplar."""
+        """MMap modunda ertelenmiş normları thread-safe biçimde yalnızca ilk ihtiyaç anında hesaplar."""
         if self._norms_ready:
             return
-        if self._size == 0:
-            self._sq_norms = np.empty(0, dtype=np.float32)
-            self._inv_norms = np.empty(0, dtype=np.float32)
-        else:
-            sq, inv = compute_inv_norms(self._buf[: self._size])
-            self._sq_norms = sq
-            self._inv_norms = inv
-        self._norms_ready = True
+        with self._norm_lock:
+            if self._norms_ready:
+                return
+            if self._size == 0:
+                self._sq_norms = np.empty(0, dtype=np.float32)
+                self._inv_norms = np.empty(0, dtype=np.float32)
+            else:
+                sq, inv = compute_inv_norms(self._buf[: self._size])
+                self._sq_norms = sq
+                self._inv_norms = inv
+            self._norms_ready = True
 
     def _ensure_writable(self, min_capacity: int) -> None:
         """Tampon mmap ise veya kapasite yetersizse büyütüp yazılabilir hale getirir."""

@@ -15,12 +15,18 @@ v0.2.0, v0.3.0 ve v0.4.0 API'leri ile %100 geriye dönük uyumludur.
 """
 
 import os
+import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from concurrent.futures import Future
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 import numpy as np
 
-from microvectordb.concurrency import RWLock
+from microvectordb.concurrency import (
+    BackgroundTaskManager,
+    BatchQueryExecutor,
+    RWLock,
+)
 from microvectordb.filtering import MetadataIndex, matches_filter
 from microvectordb.indexes import (
     DiskIndex,
@@ -102,6 +108,8 @@ class Collection:
         keep_raw_vectors: bool = True,
         index_params: Optional[Dict[str, Any]] = None,
         data_epoch: int = 0,
+        query_executor: Optional[BatchQueryExecutor] = None,
+        bg_tasks: Optional[BackgroundTaskManager] = None,
     ):
         validate_metric(metric)
         if index_type not in _VALID_INDEX_TYPES:
@@ -129,6 +137,7 @@ class Collection:
             self.index_params.get("_keep_raw_vectors", keep_raw_vectors)
         )
         self._data_epoch: int = int(data_epoch)
+        self._compaction_epoch: int = 0
         self._index_dirty: bool = False
         self._col_cache_dirty: bool = False
         self._index_loaded_from_disk: bool = False
@@ -136,8 +145,14 @@ class Collection:
         # Tombstone sıkıştırma politikası
         self._compaction_threshold: float = float(self.index_params.get("compaction_threshold", 0.25))
         self._auto_compact_min_deleted: int = int(self.index_params.get("auto_compact_min_deleted", 64))
+        self._auto_compact_async: bool = bool(self.index_params.get("auto_compact_async", False))
 
         self._lock = RWLock()
+        self._lazy_init_lock = threading.Lock()
+        self._owns_executor = query_executor is None
+        self._query_executor = query_executor or BatchQueryExecutor()
+        self._owns_bg = bg_tasks is None
+        self._bg_tasks = bg_tasks or BackgroundTaskManager(max_workers=2)
         self._storage.ensure_collection_storage(self.name)
 
         # İkili WAL (kalıcı modda etkin; varsayılan "normal" = OS flush, "full" = her yazımda fsync)
@@ -208,36 +223,45 @@ class Collection:
         self._load_from_storage()
 
     # ------------------------------------------------------------------ #
-    # Tembel İndeks Başlatıcıları (Sorun #1: Hızlı Açılış)
+    # Tembel İndeks Başlatıcıları (Double-Checked Thread-Safe!)
     # ------------------------------------------------------------------ #
     def _ensure_meta_index_locked(self) -> None:
         if not self._meta_index_dirty:
             return
-        deleted_set = (
-            set(np.flatnonzero(self._deleted_mask).tolist())
-            if self._deleted_count > 0
-            else None
-        )
-        self._meta_index.rebuild(self._metadatas, deleted_slots=deleted_set)
-        self._meta_index_dirty = False
+        with self._lazy_init_lock:
+            if not self._meta_index_dirty:
+                return
+            deleted_set = (
+                set(np.flatnonzero(self._deleted_mask).tolist())
+                if self._deleted_count > 0
+                else None
+            )
+            self._meta_index.rebuild(self._metadatas, deleted_slots=deleted_set)
+            self._meta_index_dirty = False
 
     def _ensure_bm25_index_locked(self) -> None:
         if not self._bm25_dirty:
             return
-        self._bm25_index.rebuild(
-            self._documents,
-            deleted_mask=self._deleted_mask if self._deleted_count > 0 else None,
-        )
-        self._bm25_dirty = False
+        with self._lazy_init_lock:
+            if not self._bm25_dirty:
+                return
+            self._bm25_index.rebuild(
+                self._documents,
+                deleted_mask=self._deleted_mask if self._deleted_count > 0 else None,
+            )
+            self._bm25_dirty = False
 
     def _ensure_sparse_index_locked(self) -> None:
         if not self._sparse_dirty:
             return
-        self._sparse_index.rebuild(
-            self._sparse_vectors,
-            deleted_mask=self._deleted_mask if self._deleted_count > 0 else None,
-        )
-        self._sparse_dirty = False
+        with self._lazy_init_lock:
+            if not self._sparse_dirty:
+                return
+            self._sparse_index.rebuild(
+                self._sparse_vectors,
+                deleted_mask=self._deleted_mask if self._deleted_count > 0 else None,
+            )
+            self._sparse_dirty = False
 
     def _alive_count_locked(self) -> int:
         return len(self._ids) - self._deleted_count
@@ -1656,6 +1680,154 @@ class Collection:
             for i in range(len(res.ids[0]))
         ]
 
+    def batch_search(
+        self,
+        query_vectors: BatchVectors,
+        limit: int = 10,
+        filter: Optional[Dict[str, Any]] = None,
+        filters: Optional[Sequence[Optional[Dict[str, Any]]]] = None,
+        score_threshold: Optional[float] = None,
+        ef_search: Optional[int] = None,
+        nprobe: Optional[int] = None,
+        strategy: str = "auto",
+        filter_strategy: str = "auto",
+        max_workers: Optional[int] = None,
+    ) -> List[List[SearchResultItem]]:
+        """
+        Çok çekirdekli paralel toplu benzerlik araması (`BatchQueryExecutor`).
+        Paylaşımlı `filter` veya sorgu başına farklı `filters` listesi destekler.
+        Flat exact modunda (filtre paylaşımlıysa) doğrudan çok çekirdekli BLAS SGEMM kullanır.
+        """
+        q_arr = validate_vectors(query_vectors, dtype=np.float32)
+        n_q = q_arr.shape[0]
+        if n_q == 0:
+            return []
+        if filters is not None and len(filters) != n_q:
+            raise ValueError(
+                f"filters uzunluğu ({len(filters)}) sorgu vektör sayısına ({n_q}) eşit olmalıdır."
+            )
+
+        def _query_res_to_items(res: QueryResult) -> List[List[SearchResultItem]]:
+            out: List[List[SearchResultItem]] = []
+            for qi in range(len(res.ids)):
+                out.append(
+                    [
+                        SearchResultItem(
+                            id=res.ids[qi][j],
+                            score=res.similarities[qi][j],
+                            distance=res.distances[qi][j],
+                            document=res.documents[qi][j],
+                            metadata=res.metadatas[qi][j],
+                        )
+                        for j in range(len(res.ids[qi]))
+                    ]
+                )
+            return out
+
+        # Veri-odaklı otomatik paralellik yönlendirmesi (v0.6.0 GIL/BLAS analizi):
+        # - HNSW: saf C++ GIL-serbest graf taraması -> çok çekirdekli havuzda 2.5x+ hızlanır (~20K QPS!)
+        # - Flat BLAS / IVF / IVF-PQ / DiskIndex: dahili OpenBLAS veya kısa Python/NumPy çekirdekleri
+        #   nedeniyle tek işçi (0 GIL çekişmesi) varsayılan olarak en yüksek QPS'i verir;
+        #   kullanıcı `max_workers` açıkça verirse o sayıya uyulur.
+        with self._lock.read_lock():
+            eff = self._effective_index_type()
+            use_single_thread_default = (eff != "hnsw")
+
+        if filters is None and (
+            n_q == 1
+            or max_workers == 1
+            or (max_workers is None and use_single_thread_default)
+        ):
+            res = self.query(
+                query_embeddings=q_arr,
+                n_results=limit,
+                where=filter,
+                score_threshold=score_threshold,
+                ef_search=ef_search,
+                nprobe=nprobe,
+                strategy=strategy,
+                filter_strategy=filter_strategy,
+            )
+            return _query_res_to_items(res)
+
+        if filters is None:
+            idx_list = list(range(n_q))
+
+            def _run_shared_chunk(idxs: Sequence[int]) -> List[List[SearchResultItem]]:
+                sub_q = q_arr[idxs[0] : idxs[-1] + 1]
+                res = self.query(
+                    query_embeddings=sub_q,
+                    n_results=limit,
+                    where=filter,
+                    score_threshold=score_threshold,
+                    ef_search=ef_search,
+                    nprobe=nprobe,
+                    strategy=strategy,
+                    filter_strategy=filter_strategy,
+                )
+                return _query_res_to_items(res)
+
+            return self._query_executor.map_chunks(_run_shared_chunk, idx_list, max_workers=max_workers)
+
+        # Sorgu başına farklı filtreler
+        eff_workers = (
+            max_workers
+            if max_workers is not None
+            else (1 if use_single_thread_default else None)
+        )
+        pairs = [(i, filters[i]) for i in range(n_q)]
+
+        def _run_per_filter_chunk(chunk: Sequence[Tuple[int, Optional[Dict[str, Any]]]]) -> List[List[SearchResultItem]]:
+            out_chunk: List[List[SearchResultItem]] = []
+            for qi, flt in chunk:
+                out_chunk.append(
+                    self.search(
+                        query_vector=q_arr[qi],
+                        limit=limit,
+                        filter=flt,
+                        score_threshold=score_threshold,
+                        ef_search=ef_search,
+                        nprobe=nprobe,
+                        strategy=strategy,
+                        filter_strategy=filter_strategy,
+                    )
+                )
+            return out_chunk
+
+        return self._query_executor.map_chunks(_run_per_filter_chunk, pairs, max_workers=eff_workers)
+
+    def batch_hybrid_search(
+        self,
+        queries: Sequence[Dict[str, Any]],
+        limit: int = 10,
+        max_workers: Optional[int] = None,
+        **default_kwargs: Any,
+    ) -> List[List[SearchResultItem]]:
+        """
+        Çoklu heterojen hibrit sorguları (Dense + BM25 + Sparse) yürütür.
+        Harici I/O tabanlı `reranker` kullanılıyorsa veya `max_workers` açıkça verilmişse
+        çoklu iş parçacığıyla paralel çalışır; saf bellek-içi CPU sorgularında GIL çekişmesini
+        önlemek için varsayılan olarak en hızlı tek-işçi (2,200+ QPS) yolunu seçer.
+        """
+        if not queries:
+            return []
+
+        has_reranker = default_kwargs.get("reranker") is not None or any(
+            q.get("reranker") is not None for q in queries
+        )
+        eff_workers = max_workers if max_workers is not None else (None if has_reranker else 1)
+
+        def _run_hybrid_chunk(chunk: Sequence[Dict[str, Any]]) -> List[List[SearchResultItem]]:
+            out_chunk: List[List[SearchResultItem]] = []
+            for q_spec in chunk:
+                merged_kw = dict(default_kwargs)
+                merged_kw.setdefault("limit", limit)
+                merged_kw.update(q_spec)
+                out_chunk.append(self.hybrid_search(**merged_kw))
+            return out_chunk
+
+        return self._query_executor.map_chunks(_run_hybrid_chunk, queries, max_workers=eff_workers)
+
     # ------------------------------------------------------------------ #
     # Faz 3: Sparse / BM25, Hybrid Search (RRF/Weighted), Multi-Vector & RAG
     # ------------------------------------------------------------------ #
@@ -2102,6 +2274,7 @@ class Collection:
         self._deleted_mask = np.zeros(len(self._ids), dtype=bool)
         self._deleted_count = 0
         self._data_epoch += 1
+        self._compaction_epoch += 1
 
         if self._storage.is_persistent:
             self._storage.invalidate_items_columnar_cache(self.name)
@@ -2145,6 +2318,182 @@ class Collection:
                 self._compact_locked(rebuild_ann=True)
                 self._save_ann_index_locked()
             return reclaimed
+
+    def compact_async(self) -> Future:
+        """
+        Tombstone sıkıştırmasını arka plan iş parçacığında (coalesced) başlatır.
+        Dönen `Future.result()` temizlenen slot sayısını verir.
+        """
+        return self._bg_tasks.submit_coalesced(f"compact:{self.name}", self.compact)
+
+    def rebuild_index_async(self) -> Future:
+        """
+        Okuyucuları bloklamadan (non-blocking snapshot-and-swap) ANN/Disk indeksini
+        arka planda yeniden inşa eder; inşa sırasında gelen yeni vektör deltalarını
+        otomatik olarak yeni indekse ekler.
+        Dönen `Future.result()` -> `True` (başarılı takas) veya `False` (eşzamanlı compaction).
+        """
+        return self._bg_tasks.submit_coalesced(
+            f"rebuild:{self.name}", self._rebuild_index_nonblocking
+        )
+
+    def _rebuild_index_nonblocking(self) -> bool:
+        # 1. Kısa read_lock: tutarlı vektör anlık görüntüsü al ve kilidi HEMEN bırak!
+        with self._lock.read_lock():
+            eff = self._effective_index_type()
+            total_slots_snap = len(self._ids)
+            n_alive = self._alive_count_locked()
+            if n_alive == 0 or self.dimension is None or eff == "flat":
+                return False
+            comp_epoch_start = self._compaction_epoch
+            deleted_mask_snap = self._deleted_mask.copy() if self._deleted_count > 0 else None
+            has_raw = self._vbuf.size == total_slots_snap
+            if has_raw:
+                vecs_snap = np.ascontiguousarray(self._vbuf.view, dtype=np.float32)
+            elif self._storage.is_persistent:
+                vecs_snap = self._storage.load_vectors(
+                    self.name, self.dimension, use_mmap=False, verify_crc=False
+                ).astype(np.float32, copy=False)
+            else:
+                return False
+            dim = self.dimension
+
+        # 2. KİLİT DIŞINDA (sıfır okuyucu bloklaması!): ağır eğitimi yap
+        new_ivf: Optional[IVFIndex] = None
+        new_ivfpq: Optional[IVFPQIndex] = None
+        new_hnsw: Optional[HNSWIndex] = None
+        new_disk: Optional[DiskIndex] = None
+        staged_disk_vec: Optional[str] = None
+        staged_disk_meta: Optional[str] = None
+
+        if eff == "ivf":
+            default_clusters = max(1, min(int(np.sqrt(total_slots_snap)), 1024))
+            n_clusters = int(self.index_params.get("n_clusters", default_clusters))
+            nprobe = int(self.index_params.get("nprobe", max(1, min(n_clusters // 8, 16))))
+            new_ivf = IVFIndex(n_clusters=min(n_clusters, total_slots_snap), nprobe=nprobe, metric=self.metric)
+            new_ivf.train(vecs_snap, n_iter=int(self.index_params.get("n_iter", 15)))
+        elif eff == "ivf_pq":
+            default_clusters = max(1, min(int(np.sqrt(total_slots_snap)), 512))
+            n_clusters = int(self.index_params.get("n_clusters", default_clusters))
+            nprobe = int(self.index_params.get("nprobe", max(1, min(n_clusters // 8, 16))))
+            new_ivfpq = IVFPQIndex(
+                n_clusters=min(n_clusters, total_slots_snap),
+                nprobe=nprobe,
+                n_subvectors=self.index_params.get("pq_subvectors"),
+                n_centroids=int(self.index_params.get("pq_centroids", 256)),
+                metric=self.metric,
+            )
+            new_ivfpq.train(
+                vecs_snap,
+                n_iter=int(self.index_params.get("n_iter", 12)),
+                pq_iter=int(self.index_params.get("pq_iter", 12)),
+            )
+        elif eff == "hnsw" and is_hnsw_available():
+            new_hnsw = HNSWIndex(
+                dimension=dim,
+                metric=self.metric,
+                M=int(self.index_params.get("M", 16)),
+                ef_construction=int(self.index_params.get("ef_construction", 128)),
+                ef_search=int(self.index_params.get("ef_search", 64)),
+                initial_capacity=max(1024, total_slots_snap),
+            )
+            if deleted_mask_snap is None:
+                new_hnsw.add_items(vecs_snap, np.arange(total_slots_snap, dtype=np.int64))
+            else:
+                alive_slots = np.flatnonzero(~deleted_mask_snap).astype(np.int64)
+                new_hnsw.add_items(vecs_snap[alive_slots], alive_slots)
+        elif eff == "disk":
+            default_clusters = max(1, min(int(np.sqrt(total_slots_snap)), 512))
+            n_clusters = int(self.index_params.get("n_clusters", default_clusters))
+            nprobe = int(self.index_params.get("nprobe", max(1, min(n_clusters // 8, 16))))
+            d_vec = self._storage.get_index_file_path(self.name, ".mvdbdisk")
+            d_meta = self._storage.get_index_file_path(self.name, ".disk.meta")
+            tag = f".bg.{os.getpid()}.{time.time_ns()}"
+            staged_disk_vec = (d_vec + tag) if d_vec else None
+            staged_disk_meta = (d_meta + tag) if d_meta else None
+            new_disk = DiskIndex(
+                n_clusters=min(n_clusters, total_slots_snap),
+                nprobe=nprobe,
+                metric=self.metric,
+                storage_dtype=self.storage_dtype,
+            )
+            new_disk.build(
+                vecs_snap,
+                disk_vec_path=staged_disk_vec,
+                meta_path=staged_disk_meta,
+                epoch=self._data_epoch,
+                n_iter=int(self.index_params.get("n_iter", 12)),
+            )
+        else:
+            return False
+
+        # 3. Mikrosaniyelik write_lock: yeni gelen deltaları ekle ve atomik takas et!
+        with self._lock.write_lock():
+            if self._compaction_epoch != comp_epoch_start:
+                # İnşa sürerken compaction yapılmış -> bayat indeksi güvenle çöpe at
+                if new_disk is not None:
+                    new_disk.close()
+                for p in (staged_disk_vec, staged_disk_meta):
+                    if p and os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except OSError:
+                            pass
+                return False
+
+            cur_total = len(self._ids)
+            delta_n = cur_total - total_slots_snap
+            delta_vecs: Optional[np.ndarray] = None
+            if delta_n > 0:
+                if self._vbuf.size == cur_total:
+                    delta_vecs = np.ascontiguousarray(self._vbuf.view[total_slots_snap:cur_total], dtype=np.float32)
+                elif self._storage.is_persistent:
+                    all_disk = self._storage.load_vectors(self.name, dim, use_mmap=False, verify_crc=False)
+                    delta_vecs = np.ascontiguousarray(all_disk[total_slots_snap:cur_total], dtype=np.float32)
+
+            if new_ivf is not None:
+                if delta_vecs is not None and delta_n > 0:
+                    new_ivf.add_vectors(delta_vecs, start_idx=total_slots_snap)
+                self._ivf_index = new_ivf
+            elif new_ivfpq is not None:
+                if delta_vecs is not None and delta_n > 0:
+                    new_ivfpq.add_vectors(delta_vecs, start_idx=total_slots_snap)
+                self._ivf_pq_index = new_ivfpq
+                if not self.keep_raw_vectors:
+                    self._vbuf.release_mmap()
+                    self._vbuf = VectorBuffer(dimension=dim, dtype=self._vbuf.dtype)
+            elif new_hnsw is not None:
+                if delta_vecs is not None and delta_n > 0:
+                    new_hnsw.add_items(
+                        delta_vecs, np.arange(total_slots_snap, cur_total, dtype=np.int64)
+                    )
+                if self._deleted_count > 0:
+                    for dead_slot in np.flatnonzero(self._deleted_mask):
+                        new_hnsw.mark_deleted(int(dead_slot))
+                self._hnsw_index = new_hnsw
+            elif new_disk is not None:
+                # DiskIndex dosyalarını atomik yerine taşı
+                final_vec = self._storage.get_index_file_path(self.name, ".mvdbdisk")
+                final_meta = self._storage.get_index_file_path(self.name, ".disk.meta")
+                if self._disk_index is not None:
+                    self._disk_index.close()
+                if staged_disk_vec and staged_disk_meta and final_vec and final_meta:
+                    new_disk.close()
+                    os.replace(staged_disk_vec, final_vec)
+                    os.replace(staged_disk_meta, final_meta)
+                    reloaded, _ = DiskIndex.load(final_vec, final_meta)
+                    self._disk_index = reloaded
+                else:
+                    self._disk_index = new_disk
+                if delta_vecs is not None and delta_n > 0:
+                    self._rebuild_ann_index_locked()
+
+            self._index_dirty = True
+            return True
+
+    def wait_for_background(self, timeout: Optional[float] = None) -> None:
+        """Bekleyen tüm arka plan compaction / indeks inşa görevlerinin bitmesini bekler."""
+        self._bg_tasks.wait_all(timeout=timeout)
 
     def delete(
         self,
@@ -2213,13 +2562,22 @@ class Collection:
             # 4. Koleksiyon tamamen boşaldıysa veya tombstone oranı eşiği aştıysa sıkıştır
             total_slots = len(self._ids)
             alive_now = total_slots - self._deleted_count
-            if alive_now == 0 or (
+            trigger_bg_compact = False
+            if alive_now == 0:
+                self._compact_locked(rebuild_ann=True)
+            elif (
                 self._deleted_count >= self._auto_compact_min_deleted
                 and (self._deleted_count / max(1, total_slots)) >= self._compaction_threshold
             ):
-                self._compact_locked(rebuild_ann=True)
+                if self._auto_compact_async:
+                    trigger_bg_compact = True
+                else:
+                    self._compact_locked(rebuild_ann=True)
 
-            return deleted_count
+        if trigger_bg_compact:
+            self.compact_async()
+
+        return deleted_count
 
     def checkpoint(self) -> None:
         """
@@ -2243,7 +2601,8 @@ class Collection:
                 self._wal.truncate()
 
     def close(self) -> None:
-        """Değişmiş indeksleri ve sütunsal önbelleği diske kaydedip açık tüm tutamaçları kapatır."""
+        """Arka plan görevlerini bekler, değişmiş indeksleri kaydedip tüm tutamaçları kapatır."""
+        self.wait_for_background()
         with self._lock.write_lock():
             if self._storage.is_persistent and self._alive_count_locked() > 0:
                 if self._index_dirty:
@@ -2262,6 +2621,10 @@ class Collection:
             if self._wal is not None:
                 self._wal.close()
             self._vbuf.release_mmap()
+        if self._owns_bg:
+            self._bg_tasks.shutdown(wait=True)
+        if self._owns_executor:
+            self._query_executor.shutdown(wait=True)
 
     def get_all_ids(self) -> List[str]:
         with self._lock.read_lock():

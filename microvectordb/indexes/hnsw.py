@@ -14,6 +14,7 @@ import zlib
 from typing import Callable, List, Optional, Set, Tuple
 import numpy as np
 
+from microvectordb.concurrency.rwlock import RWLock
 from microvectordb.metrics.kernels import validate_metric
 from microvectordb.types import DataCorruptionError, MetricType
 
@@ -73,6 +74,7 @@ class HNSWIndex:
         self._space = _METRIC_TO_HNSW_SPACE[metric]
         self._capacity = max(64, int(initial_capacity))
         self._active_count = 0
+        self._ef_lock = RWLock()
 
         self._index = hnswlib.Index(space=self._space, dim=self.dimension)
         if not _skip_init:
@@ -147,9 +149,10 @@ class HNSWIndex:
         k: int = 10,
         ef_search: Optional[int] = None,
         filter_fn: Optional[Callable[[int], bool]] = None,
+        num_threads: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Çoklu veya tekil sorgu araması.
+        Çoklu veya tekil sorgu araması (RWLock korumalı thread-safe `ef_search` yönetimi).
         Dönüş: (labels (Q, K), distances (Q, K), similarities (Q, K))
         """
         q32 = np.ascontiguousarray(queries, dtype=np.float32)
@@ -167,17 +170,24 @@ class HNSWIndex:
         actual_k = min(k, self._active_count)
         prev_ef = self.ef_search
         target_ef = max(ef_search or self.ef_search, actual_k)
-        if target_ef != self.ef_search:
-            self._index.set_ef(target_ef)
+        use_threads = 1 if filter_fn is not None else int(num_threads)
 
-        try:
-            if filter_fn is not None:
-                labels, raw_dists = self._index.knn_query(q32, k=actual_k, filter=filter_fn)
-            else:
-                labels, raw_dists = self._index.knn_query(q32, k=actual_k)
-        finally:
-            if target_ef != prev_ef:
-                self._index.set_ef(prev_ef)
+        if target_ef == prev_ef:
+            with self._ef_lock.read_lock():
+                if filter_fn is not None:
+                    labels, raw_dists = self._index.knn_query(q32, k=actual_k, filter=filter_fn, num_threads=1)
+                else:
+                    labels, raw_dists = self._index.knn_query(q32, k=actual_k, num_threads=use_threads)
+        else:
+            with self._ef_lock.write_lock():
+                self._index.set_ef(target_ef)
+                try:
+                    if filter_fn is not None:
+                        labels, raw_dists = self._index.knn_query(q32, k=actual_k, filter=filter_fn, num_threads=1)
+                    else:
+                        labels, raw_dists = self._index.knn_query(q32, k=actual_k, num_threads=use_threads)
+                finally:
+                    self._index.set_ef(prev_ef)
 
         dists, sims = self._convert_distances(raw_dists)
         return labels.astype(np.int64, copy=False), dists, sims

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microvectordb"
-version = "0.5.0"
+version = "0.6.0"
 description = "A high-performance, low-memory, persistent vector database for Python, RAG, and AI agents"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Huneyn Kaya" }
+    { name = "Ahmet GÜN" }
 ]
 requires-python = ">=3.8"
 dependencies = [

@@ -9,6 +9,7 @@ import threading
 from typing import Any, Dict, List, Optional
 
 from microvectordb.collection import Collection
+from microvectordb.concurrency import BackgroundTaskManager, BatchQueryExecutor
 from microvectordb.metrics import validate_metric
 from microvectordb.search import TenantCollection
 from microvectordb.storage import StorageEngine, validate_collection_name
@@ -25,11 +26,18 @@ from microvectordb.types import (
 class BaseClient:
     """Temel vektör veritabanı istemcisi."""
 
-    def __init__(self, storage: StorageEngine, use_mmap: bool = False):
+    def __init__(
+        self,
+        storage: StorageEngine,
+        use_mmap: bool = False,
+        max_workers: Optional[int] = None,
+    ):
         self._storage = storage
         self._default_use_mmap = bool(use_mmap)
         self._collections: Dict[str, Collection] = {}
         self._lock = threading.RLock()
+        self._query_executor = BatchQueryExecutor(max_workers=max_workers)
+        self._bg_tasks = BackgroundTaskManager(max_workers=2)
         self._load_existing_collections()
 
     def _load_existing_collections(self) -> None:
@@ -51,6 +59,8 @@ class BaseClient:
                 keep_raw_vectors=bool(meta_params.get("_keep_raw_vectors", True)),
                 index_params=meta_params,
                 data_epoch=meta.get("data_epoch", 0),
+                query_executor=self._query_executor,
+                bg_tasks=self._bg_tasks,
             )
             self._collections[name] = coll
 
@@ -85,6 +95,8 @@ class BaseClient:
                 use_mmap=self._default_use_mmap if use_mmap is None else use_mmap,
                 keep_raw_vectors=keep_raw_vectors,
                 index_params=index_params,
+                query_executor=self._query_executor,
+                bg_tasks=self._bg_tasks,
             )
             self._collections[name] = coll
             self._storage.save_collection_meta(
@@ -184,12 +196,18 @@ class BaseClient:
         """SHA-256 manifestini doğrulayarak snapshot'ı `target_dir` konumuna geri yükler."""
         return StorageEngine.restore_snapshot(snapshot_dir, target_dir, overwrite=overwrite)
 
+    def wait_for_background(self, timeout: Optional[float] = None) -> None:
+        """Tüm koleksiyonlardaki bekleyen arka plan görevlerinin tamamlanmasını bekler."""
+        self._bg_tasks.wait_all(timeout=timeout)
+
     def close(self) -> None:
-        """Tüm açık mmap ve SQLite kaynaklarını temiz biçimde kapatır."""
+        """Arka plan görevlerini tamamlar, tüm açık mmap/SQLite/havuz kaynaklarını kapatır."""
+        self._bg_tasks.shutdown(wait=True)
         with self._lock:
             for coll in self._collections.values():
                 coll.close()
             self._storage.close()
+        self._query_executor.shutdown(wait=True)
 
     def __enter__(self) -> "BaseClient":
         return self
@@ -207,9 +225,14 @@ class PersistentClient(BaseClient):
             collection = client.get_or_create_collection("docs")
     """
 
-    def __init__(self, path: str = "./microvectordb_data", use_mmap: bool = False):
+    def __init__(
+        self,
+        path: str = "./microvectordb_data",
+        use_mmap: bool = False,
+        max_workers: Optional[int] = None,
+    ):
         storage = StorageEngine(persist_dir=path)
-        super().__init__(storage=storage, use_mmap=use_mmap)
+        super().__init__(storage=storage, use_mmap=use_mmap, max_workers=max_workers)
         self.path = path
 
     def __repr__(self) -> str:
@@ -222,9 +245,9 @@ class EphemeralClient(BaseClient):
     Sıfır disk I/O ve sıfır SQLite serileştirme maliyeti ile maksimum hız sunar.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_workers: Optional[int] = None) -> None:
         storage = StorageEngine(persist_dir=None)
-        super().__init__(storage=storage, use_mmap=False)
+        super().__init__(storage=storage, use_mmap=False, max_workers=max_workers)
 
     def __repr__(self) -> str:
         return f"<EphemeralClient(collections={len(self._collections)})>"
@@ -240,9 +263,14 @@ class MicroVectorDB(BaseClient):
         coll = db.create_collection("knowledge_base", dimension=768, metric="cosine", index_type="hnsw")
     """
 
-    def __init__(self, path: Optional[str] = None, use_mmap: bool = False):
+    def __init__(
+        self,
+        path: Optional[str] = None,
+        use_mmap: bool = False,
+        max_workers: Optional[int] = None,
+    ):
         storage = StorageEngine(persist_dir=path)
-        super().__init__(storage=storage, use_mmap=use_mmap)
+        super().__init__(storage=storage, use_mmap=use_mmap, max_workers=max_workers)
         self.path = path
 
     def __repr__(self) -> str:

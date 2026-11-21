@@ -1,19 +1,25 @@
 # MicroVectorDB 🚀
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
 [![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](requirements.txt)
 
-**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG yeteneklerine sahip, WAL korumalı ve yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
+**MicroVectorDB**, yüksek performanslı, düşük bellek tüketimli, hibrit arama ve RAG yeteneklerine sahip, asenkron/çok çekirdekli, WAL korumalı ve yalnızca `numpy` temel bağımlılığı ile çalışan açık kaynaklı bir Python Vektör Veritabanıdır.
 
 > **Felsefe:** *High Performance + Low Memory + Fast Retrieval + Reliable Storage + Developer Friendly*
 
 ---
 
-## ✨ Neler Sunar? (v0.5.0 — Doğrulanmış Özellikler)
+## ✨ Neler Sunar? (v0.6.0 — Doğrulanmış Özellikler)
 
 - **Sıfır Ağır Çekirdek Bağımlılığı:** Çekirdek yalnızca `numpy>=1.20` gerektirir (NumPy 1.x ve 2.x tam uyumlu). Opsiyonel eklentiler: HNSW için `pip install ".[hnsw]"`, hızlı JSON/metadata açılışı için `pip install ".[fast]"` (`orjson`) veya hepsi için `pip install ".[all]"`.
+- **Yüksek Eşzamanlılık, Async İstemci & Bloklamayan Arka Plan İşçileri (`v0.6.0`):**
+  - **Çok Çekirdekli Paralel Toplu Arama (`batch_search` & `batch_hybrid_search`):** 100K×128D HNSW üzerinde `workers=8` ile **18,765 QPS (2.45x hızlanma)**; GIL/OpenBLAS ölçümlerine dayalı otomatik işçi yönlendirmesi.
+  - **Standart `asyncio` İstemcisi (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):** Sıfır ek bağımlılıkla `async with` ve `asyncio.gather()` fan-out (**3,287 QPS** @ 100K HNSW).
+  - **Bloklamayan Arka Plan İndeks İnşası (`rebuild_index_async()`):** Snapshot-and-Swap mimarisi ile 50K IVF yeniden inşası (`1.05 s`) sürerken okuyucular **0.363 ms P50 (Max 3.99 ms)** ile kesintisiz hizmet verir ve inşa sırasında gelen yeni eklemeler otomatik birleştirilir.
+  - **Arka Plan Sıkıştırma (`compact_async()` & `auto_compact_async=True`):** Yoğun silme eşiğinde kuyruk gecikmesini **49.89 ms → 0.821 ms (60.8x)** düşürür.
+  - **Sertleştirilmiş Thread-Safety:** Yazıcı-öncelikli `RWLock`, double-checked tembel indeks/norm başlatma ve HNSW `_ef_lock` koruması. Detaylı ACID/dayanıklılık sözleşmesi: [`docs/RELIABILITY.md`](docs/RELIABILITY.md).
 - **Hibrit Arama Motoru (`Dense + BM25 + Sparse`):**
   - **Vektörize Okapi BM25 (`BM25Index`) + Türkçe/Unicode Tokenizer:** `İ → i`, `I → ı` uyumlu; derlenmiş NumPy ağırlıklarıyla 10K dokümanda **0.476 ms (1,982 QPS)**.
   - **Seyrek Vektör İndeksi (`SparseVectorIndex`):** SPLADE / BGE-M3 / TF-IDF `{token: weight}` vektörleri için SQLite kalıcılığı ve **0.151 ms (7,269 QPS)**.
@@ -75,15 +81,17 @@ v0.4.0 benchmark denetiminde tespit edilen ve üretim kullanımını etkileyen *
 
 ---
 
-## 📊 Doğrulanmış Performans Sonuçları (v0.5.0)
+## 📊 Doğrulanmış Performans Sonuçları (v0.6.0)
 
 *Ölçüm ortamı: Windows x86-64, 12 mantıksal Intel çekirdeği (AVX2/FMA), 15.73 GB RAM, Python 3.11.9, NumPy 2.0.2 (OpenBLAS 0.3.27), FAISS 1.13.2. Tüm ham veriler için [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) dosyasına bakın.*
 
-### v0.2.0 → v0.5.0 Evrim Özeti
+### v0.2.0 → v0.6.0 Evrim Özeti
 
-| Senaryo | Eski (v0.2 / v0.3 / v0.4) | v0.5.0 | İyileşme |
+| Senaryo | Eski (v0.2 / v0.3 / v0.4) | v0.6.0 | İyileşme |
 |---|---:|---:|---:|
-| **10K×128D Tekil Kalıcı Silme (WAL + Tombstone)** | 181.90 ms *(v0.3)* | **0.403 ms** *(100K: **0.382 ms**)* | **451.4x hızlı** |
+| **100K×128D Paralel `batch_search` (HNSW, `w=8`)** | 7,659 QPS *(tek işçi)* | **18,765 QPS (13.64 ms / 256 sorgu)** | **2.45x paralel ölçeklenme** |
+| **50K×128D Arka Plan `rebuild_index_async()` Okuyucu Max** | 1,048 ms tam bloklama | **P50=0.363 ms · Max=3.99 ms (2,212 okuma)** | **262x düşük kesinti (sıfır duraklama)** |
+| **10K×128D Tekil / Yoğun Silme (`auto_compact_async`)** | 181.90 ms *(v0.3)* / 49.89 ms *(sync)* | **0.403 ms tekil / 0.821 ms eşik silme** | **451.4x / 60.8x hızlı** |
 | **100K×128D %10 Filtreli Kosinüs (Flat / HNSW+Opt)** | 59.32 ms *(v0.2)* | **2.47 ms / 0.48 ms** | **24.0x / 123.8x hızlı** |
 | **100K×128D `DiskIndex` Açılış / Arama (Recall=1.0)** | 2,791 ms inşa / 532.8 ms *(v0.4)* | **125.8 ms açılış / 1.23 ms (684 QPS)** | **22.2x / 4.23x, %95.3 az RAM** |
 | **100K×128D `IVF-PQ` Açılış / Arama (Saf NumPy)** | 542 ms / 3.45 ms *(v0.4)* | **198.9 ms / 2.27 ms (412 QPS)** | **2.72x açılış / +%61.6 QPS** |
@@ -222,7 +230,32 @@ with MicroVectorDB("./prod_db") as db:
 MicroVectorDB.restore_snapshot("./backups/snap_2026_11_21", "./restored_db")
 ```
 
-### 3. Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
+### 3. Asenkron İstemci (`AsyncMicroVectorDB`), Paralel Batch ve Arka Plan Bakım (`v0.6.0`)
+
+```python
+import asyncio
+from microvectordb import AsyncMicroVectorDB
+
+async def main():
+    async with AsyncMicroVectorDB("./async_db", max_workers=8) as db:
+        coll = await db.get_or_create_collection(
+            "docs", dimension=4, metric="cosine", index_type="hnsw",
+            index_params={"auto_compact_async": True},
+        )
+        await coll.add(ids=["1", "2"], vectors=[[1, 0, 0, 0], [0, 1, 0, 0]], documents=["İstanbul", "Ankara"])
+
+        # Eşzamanlı asyncio.gather() + çok çekirdekli batch_search()
+        hits = await asyncio.gather(
+            coll.hybrid_search(query_vector=[1, 0, 0, 0], query_text="İstanbul", limit=2),
+            coll.batch_search([[1, 0, 0, 0], [0, 1, 0, 0]], limit=2),
+        )
+        # Okuyucuları bloklamadan arka planda indeks yenileme
+        await coll.rebuild_index_async()
+
+asyncio.run(main())
+```
+
+### 4. Geriye Dönük Uyumlu ChromaDB Stili API (v0.2.0)
 
 ```python
 import microvectordb
@@ -241,9 +274,9 @@ client.close()
 ```text
 MicroVectorDB/
 ├── microvectordb/
-│   ├── __init__.py             # Ana paket arayüzü (v0.5.0)
+│   ├── __init__.py             # Ana paket arayüzü (v0.6.0)
 │   ├── client.py               # MicroVectorDB, PersistentClient, EphemeralClient, Snapshot & Multi-Tenant
-│   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, Hybrid/RAG, Tombstone, WAL)
+│   ├── collection.py           # Collection koordinatörü (RWLock, Optimizer, Hybrid/RAG, Tombstone, WAL, BG)
 │   ├── types.py                # QueryPlan, QueryResult, SearchResultItem ve özel hatalar
 │   ├── metrics/                # inv_norms Kosinüs, sq_norms Öklid, Dot, bloklu GEMM
 │   ├── storage/                # VectorBuffer (lazy mmap), .mvdbvec, .items.mvdbcol, ikili WAL, SQLite + Snapshot
@@ -251,16 +284,19 @@ MicroVectorDB/
 │   ├── quantization/           # Scalar (INT8), Float16, Binary (POPCNT), ProductQuantizer (PQ)
 │   ├── indexes/                # IVF, Precomputed IVF-PQ, DiskIndex + Streaming, HNSW, QueryOptimizer
 │   ├── search/                 # Vektörize Okapi BM25, SparseVectorIndex, RRF/Weighted Füzyon, RAG & Multi-Tenant
-│   ├── concurrency/            # Yazıcı-öncelikli RWLock
+│   ├── concurrency/            # RWLock, BatchQueryExecutor, BackgroundTaskManager, AsyncMicroVectorDB
 │   ├── distance.py             # v0.2.0 uyumluluk cephesi -> metrics/
 │   └── ivf_index.py            # v0.2.0 uyumluluk cephesi -> indexes/ivf.py
 ├── benchmarks/
 │   ├── run_benchmarks.py       # Faz 1 çekirdek benchmark paketi
 │   ├── run_benchmarks_v04.py   # Faz 2 PQ / IVF-PQ / DiskIndex / Reload / Optimizer benchmarkı
 │   ├── run_benchmarks_v05.py   # Faz 3 Sorun #1/#2/#3 + Hibrit/BM25/WAL/Tombstone/Snapshot benchmarkı
+│   ├── run_benchmarks_v06.py   # Faz 4 Paralel Batch / Async / Bloklamayan Arka Plan Bakım benchmarkı
 │   └── results/                # Kayıtlı JSON ve CSV ölçüm çıktıları
-├── tests/                      # 75/75 birim, bütünlük, WAL kurtarma, hibrit/RAG ve regresyon testi
-├── examples/                   # 5 çalışan örnek (quickstart, filtre, RAG, benchmark, hibrit+WAL)
+├── docs/
+│   └── RELIABILITY.md          # Açık ACID, WAL dayanıklılık ve eşzamanlılık sözleşmesi
+├── tests/                      # 81/81 birim, bütünlük, WAL, hibrit/RAG, async ve 12-thread stres testi
+├── examples/                   # 6 çalışan örnek (quickstart, filtre, RAG, benchmark, hibrit+WAL, async)
 ├── kernels_experimental/       # Deneysel AVX2 C/SIMD çekirdeği
 ├── ARCHITECTURE_AUDIT.md       # v0.2.0 derinlemesine mimari ve performans denetimi
 ├── BENCHMARK_REPORT.md         # Bilimsel benchmark raporu ve rakiplerle kıyas
@@ -273,8 +309,9 @@ MicroVectorDB/
 ## 🗺️ Dokümantasyon ve Yol Haritası
 
 - [`ARCHITECTURE_AUDIT.md`](ARCHITECTURE_AUDIT.md) — Mevcut mimari analizi, 10 performans darboğazı ve güvenlik denetimi
-- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM, FAISS ve Hibrit RAG kıyasları
-- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 + WAL/Tombstone ✅ → Faz 4 (Async/Batch Executor/Background Compaction) → Faz 5 (FastAPI Üretim Sunucusu) → Faz 6 (1M SIFT/GloVe & Native SIMD)
+- [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md) — Ölçülmüş QPS, P50/P95, Recall@10, RAM, FAISS, Hibrit RAG ve Eşzamanlılık kıyasları
+- [`docs/RELIABILITY.md`](docs/RELIABILITY.md) — Açık ACID garanti matrisi, `wal_sync` modları, çökme kurtarma ve eşzamanlılık sözleşmesi
+- [`ROADMAP.md`](ROADMAP.md) — Faz 1 ✅ → Faz 2 ✅ → Faz 3 ✅ → Faz 4 ✅ → Faz 5 (FastAPI Üretim Sunucusu) → Faz 6 (1M SIFT/GloVe & Native SIMD)
 - [`CHANGELOG.md`](CHANGELOG.md) — Detaylı sürüm notları
 
 ---
@@ -282,21 +319,23 @@ MicroVectorDB/
 ## 🧪 Test ve Benchmark Çalıştırma
 
 ```bash
-# Tüm testler (75/75):
+# Tüm testler (81/81):
 python -m unittest discover -s tests -v
 
 # Bilimsel benchmark paketleri (JSON + CSV üretir):
 python benchmarks/run_benchmarks.py
 python benchmarks/run_benchmarks_v04.py
 python benchmarks/run_benchmarks_v05.py
+python benchmarks/run_benchmarks_v06.py
 
-# Uçtan uca Hibrit RAG & Güvenilirlik demosu:
+# Uçtan uca demolar:
 python examples/05_hybrid_rag_and_reliability.py
+python examples/06_async_and_parallel.py
 ```
 
 ---
 
 ## 👨‍💻 Geliştirici & Lisans
 
-**Huneyn Kaya** · GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)  
+**Ahmet GÜN** · GitHub: [@Ahmet003-cod](https://github.com/Ahmet003-cod)  
 Bu proje **[MIT Lisansı](LICENSE)** ile lisanslanmıştır.

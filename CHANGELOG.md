@@ -2,6 +2,26 @@
 
 Bu dosya MicroVectorDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [0.6.0] - 2026-11-21 (Faz 4 — Yüksek Eşzamanlılık, Async İstemci, Paralel Batch ve Bloklamayan Arka Plan İşçileri)
+
+### Eklenenler
+- **Paralel Toplu Sorgu Yürütücüsü (`BatchQueryExecutor`, `batch_search`, `batch_hybrid_search`):**
+  - Paylaşımlı `filter` veya sorgu başına ayrı `filters` listesiyle paralel toplu arama; `100K × 128D` HNSW üzerinde `workers=8` ile **18,764.8 QPS (2.45x hızlanma)**.
+  - Ölçümlenmiş Python GIL / OpenBLAS sınırlarına göre otomatik işçi yönlendirmesi (HNSW ve harici reranker için çok çekirdekli havuz; kısa NumPy/OpenBLAS çekirdeklerinde sıfır çekişmeli tek-işçi yolu, `max_workers` ile geçersiz kılınabilir).
+- **Standart `asyncio` İstemcisi (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):**
+  - Sıfır ek bağımlılıkla `async with AsyncMicroVectorDB(...) as db:` ve `asyncio.gather()` desteği (`100K HNSW` `gather(256)` → **3,286.8 QPS**).
+- **Bloklamayan Arka Plan Bakım Yöneticisi (`BackgroundTaskManager`):**
+  - `collection.rebuild_index_async()`: Snapshot-and-Swap mimarisi ile ağır K-Means/PQ/HNSW eğitimini **tamamen kilit dışında** çalıştırır ve inşa sırasında gelen yeni vektör deltalarını otomatik birleştirir (`50K IVF` 1.05s inşa süresince **2,212 canlı okuma**, okuyucu **P50 = 0.363 ms, Max = 3.99 ms — 262x düşük azami gecikme**).
+  - `collection.compact_async()` (görev birleştirmeli / coalesced) ve `index_params={"auto_compact_async": True}` (yoğun silme eşiğinde çağıran gecikmesi **49.89 ms → 0.821 ms, 60.8x düşük kuyruk gecikmesi**).
+  - `wait_for_background()` ve `close()` anında temiz havuz/görev kapatma.
+- **Açık Dayanıklılık & Eşzamanlılık Sözleşmesi (`docs/RELIABILITY.md`):** Kanıtlanmamış ACID iddiası olmadan gerçek Atomicity, Consistency, Isolation ve `wal_sync="normal"|"full"` Durability matrisi.
+- Yeni örnek (`examples/06_async_and_parallel.py`), `benchmarks/run_benchmarks_v06.py` ve 12 iş parçacıklı stres/yarış testleri dahil 6 yeni test grubu (toplam **81/81 test**).
+
+### İyileştirilenler & Sertleştirilenler (Thread-Safety)
+- `Collection` tembel indeks başlatıcıları (`_ensure_meta_index_locked`, `_ensure_bm25_index_locked`, `_ensure_sparse_index_locked`), `VectorBuffer._ensure_norms()` ve `BM25Index._ensure_compiled()` soğuk açılış sonrası eşzamanlı okuyucu yarışlarını engellemek için double-checked `threading.Lock` ile korundu.
+- `HNSWIndex.search()` içindeki dinamik `ef_search` değişikliği dahili `RWLock` ile korundu (varsayılan `ef_search`'te sıfır bekleme, özel `ef_search`'te yarışmasız koruma).
+- Yazar bilgisi `LICENSE` dosyasıyla uyumlu biçimde `Ahmet GÜN` olarak güncellendi.
+
 ## [0.5.0] - 2026-11-21 (Faz 3 — Hibrit/BM25/Sparse Arama, RAG İlkelleri, WAL, `<1 ms` Tombstone Silme & Hızlı Açılış)
 
 ### Çözülen 3 Kritik Performans & Güvenilirlik Sorunu

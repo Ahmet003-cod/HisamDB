@@ -1,0 +1,239 @@
+{
+  "metadata": {
+    "microvectordb_version": "0.6.0",
+    "python": "3.11.9",
+    "os": "Windows-10-10.0.26300-SP0",
+    "cpu_logical_cores": 12,
+    "ram_total_gb": 15.73,
+    "numpy": "2.0.2",
+    "hnswlib": true,
+    "timestamp": "2026-11-21 12:22:10"
+  },
+  "parallel_batch_scaling": [
+    {
+      "workload": "HNSW (M=16, efS=64)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 1,
+      "batch_ms": 33.43,
+      "qps": 7658.7,
+      "speedup": 1.0
+    },
+    {
+      "workload": "HNSW (M=16, efS=64)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 2,
+      "batch_ms": 18.9,
+      "qps": 13547.1,
+      "speedup": 1.77
+    },
+    {
+      "workload": "HNSW (M=16, efS=64)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 4,
+      "batch_ms": 15.6,
+      "qps": 16409.8,
+      "speedup": 2.14
+    },
+    {
+      "workload": "HNSW (M=16, efS=64)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 8,
+      "batch_ms": 13.64,
+      "qps": 18764.8,
+      "speedup": 2.45
+    },
+    {
+      "workload": "IVF (C=128, np=8, saf NumPy)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 1,
+      "batch_ms": 96.54,
+      "qps": 2651.7,
+      "speedup": 1.0
+    },
+    {
+      "workload": "IVF (C=128, np=8, saf NumPy)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 2,
+      "batch_ms": 85.89,
+      "qps": 2980.5,
+      "speedup": 1.12
+    },
+    {
+      "workload": "IVF (C=128, np=8, saf NumPy)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 4,
+      "batch_ms": 110.51,
+      "qps": 2316.5,
+      "speedup": 0.87
+    },
+    {
+      "workload": "IVF (C=128, np=8, saf NumPy)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 8,
+      "batch_ms": 115.81,
+      "qps": 2210.5,
+      "speedup": 0.83
+    },
+    {
+      "workload": "IVF-PQ (C=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 1,
+      "batch_ms": 97.71,
+      "qps": 2619.9,
+      "speedup": 1.0
+    },
+    {
+      "workload": "IVF-PQ (C=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 2,
+      "batch_ms": 119.57,
+      "qps": 2141.1,
+      "speedup": 0.82
+    },
+    {
+      "workload": "IVF-PQ (C=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 4,
+      "batch_ms": 156.24,
+      "qps": 1638.5,
+      "speedup": 0.63
+    },
+    {
+      "workload": "IVF-PQ (C=128, np=8, M=16)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 8,
+      "batch_ms": 168.04,
+      "qps": 1523.4,
+      "speedup": 0.58
+    },
+    {
+      "workload": "DiskIndex (MMap, C=128, np=8)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 1,
+      "batch_ms": 144.53,
+      "qps": 1771.2,
+      "speedup": 1.0
+    },
+    {
+      "workload": "DiskIndex (MMap, C=128, np=8)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 2,
+      "batch_ms": 198.42,
+      "qps": 1290.2,
+      "speedup": 0.73
+    },
+    {
+      "workload": "DiskIndex (MMap, C=128, np=8)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 4,
+      "batch_ms": 233.11,
+      "qps": 1098.2,
+      "speedup": 0.62
+    },
+    {
+      "workload": "DiskIndex (MMap, C=128, np=8)",
+      "n_vectors": 100000,
+      "n_queries": 256,
+      "workers": 8,
+      "batch_ms": 238.04,
+      "qps": 1075.4,
+      "speedup": 0.61
+    },
+    {
+      "workload": "Hybrid (HNSW+BM25+RRF, 10K)",
+      "n_vectors": 10000,
+      "n_queries": 256,
+      "workers": 1,
+      "batch_ms": 112.73,
+      "qps": 2271.0,
+      "speedup": 1.0
+    },
+    {
+      "workload": "Hybrid (HNSW+BM25+RRF, 10K)",
+      "n_vectors": 10000,
+      "n_queries": 256,
+      "workers": 2,
+      "batch_ms": 106.61,
+      "qps": 2401.2,
+      "speedup": 1.06
+    },
+    {
+      "workload": "Hybrid (HNSW+BM25+RRF, 10K)",
+      "n_vectors": 10000,
+      "n_queries": 256,
+      "workers": 4,
+      "batch_ms": 127.22,
+      "qps": 2012.2,
+      "speedup": 0.89
+    },
+    {
+      "workload": "Hybrid (HNSW+BM25+RRF, 10K)",
+      "n_vectors": 10000,
+      "n_queries": 256,
+      "workers": 8,
+      "batch_ms": 163.0,
+      "qps": 1570.5,
+      "speedup": 0.69
+    }
+  ],
+  "async_gather_fanout": [
+    {
+      "scenario": "AsyncMicroVectorDB gather(64) on 100K HNSW",
+      "concurrency": 64,
+      "wall_ms": 56.43,
+      "aggregate_qps": 1134.2,
+      "req_p50_ms": 14.386,
+      "req_p95_ms": 34.913
+    },
+    {
+      "scenario": "AsyncMicroVectorDB gather(256) on 100K HNSW",
+      "concurrency": 256,
+      "wall_ms": 77.89,
+      "aggregate_qps": 3286.8,
+      "req_p50_ms": 43.78,
+      "req_p95_ms": 71.154
+    }
+  ],
+  "background_maintenance": [
+    {
+      "scenario": "50K IVF rebuild_index_async() sırasında eşzamanlı okuyucular",
+      "swapped": true,
+      "rebuild_ms": 1047.6,
+      "reads_completed_during_rebuild": 2212,
+      "reader_p50_ms": 0.363,
+      "reader_p95_ms": 1.118,
+      "reader_max_ms": 3.993
+    },
+    {
+      "scenario": "10K Yoğun Silme (25x100) auto_compact_async=False",
+      "p50_ms": 0.44,
+      "p95_ms": 1.926,
+      "trigger_batch_ms": 49.886,
+      "max_ms": 49.886,
+      "final_tombstones": 0
+    },
+    {
+      "scenario": "10K Yoğun Silme (25x100) auto_compact_async=True",
+      "p50_ms": 0.486,
+      "p95_ms": 0.814,
+      "trigger_batch_ms": 0.821,
+      "max_ms": 1.993,
+      "final_tombstones": 0
+    }
+  ]
+}

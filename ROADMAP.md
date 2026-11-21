@@ -66,15 +66,16 @@
 ---
 
 ## Faz 4 — İleri Eşzamanlılık, Async İstemci ve Arka Plan İşçileri (`v0.6.0`)
-**Durum:** Sıradaki Aşama *(WAL, Tombstone, Compaction ve SHA-256 Snapshot/Restore v0.5.0'a öne çekilerek tamamlanmıştır.)*
-- **Paralel Toplu Sorgu Yürütme (`BatchQueryExecutor`):** Büyük batch sorgularının çok çekirdekli (GIL-serbest NumPy/hnswlib) paralel dağıtımı.
-- **`asyncio` İstemci Sarmalayıcısı (`AsyncMicroVectorDB`):** FastAPI ve modern asenkron Python uygulamaları için bloklamayan async API.
-- **Arka Plan Sıkıştırma & İndeks İnşası (Background Compaction/Indexing):** Yazma/arama trafiğini bloklamadan arka planda tombstone sıkıştırma ve ANN indeks yeniden inşası.
-- **Açık Dayanıklılık & İşlem Sözleşmesi:** Batch atomikliği, `wal_sync="normal"|"full"` garanti matrisi ve stres/kaos kurtarma test paketi.
+**Durum:** ✅ Tamamlandı (`81/81` test, `benchmarks/results/benchmark_v0.6.0.json` ve `docs/RELIABILITY.md` doğrulandı)
+- **Paralel Toplu Sorgu Yürütücüsü (`BatchQueryExecutor`, `batch_search`, `batch_hybrid_search`):** 100K×128D HNSW üzerinde **18,765 QPS (2.45x)**; ölçümlenmiş GIL/OpenBLAS sınırlarına göre otomatik işçi yönlendirmesi.
+- **`asyncio` İstemci Sarmalayıcısı (`AsyncMicroVectorDB`, `AsyncCollection`, `AsyncTenantCollection`):** Sıfır ek bağımlılıkla `asyncio.gather()` fan-out (**3,287 QPS** @ 100K HNSW).
+- **Bloklamayan Arka Plan Bakım (`BackgroundTaskManager`):** Snapshot-and-Swap `rebuild_index_async()` (50K IVF inşası süresince **2,212 canlı okuma, P50 = 0.363 ms, Max = 3.99 ms**) + coalesced `compact_async()` + `auto_compact_async=True` (**49.89 ms → 0.821 ms, 60.8x düşük silme kuyruk gecikmesi**).
+- **Açık Dayanıklılık & Eşzamanlılık Sözleşmesi (`docs/RELIABILITY.md`)** + double-checked thread-safe lazy init + `HNSWIndex` `_ef_lock` + 12 iş parçacıklı kaos/stres test paketi.
 
 ---
 
 ## Faz 5 — Üretim Sunucusu ve REST/gRPC API (`v0.7.0`)
+**Durum:** Sıradaki Aşama
 - **FastAPI Sunucusu:** Koleksiyon yönetimi, CRUD, toplu işlemler, hibrit/filtreli arama, `/health`, `/ready`, Prometheus `/metrics`.
 - **Güvenlik:** Hash'lenmiş API anahtarları, kapsam/tenant bazlı yetkilendirme, Pydantic girdi doğrulama, hız sınırlama (rate limiting), hassas verileri maskeleyen loglama.
 - **Dağıtım:** Çok aşamalı `Dockerfile`, `docker-compose.yml` ve istemci SDK'sı.

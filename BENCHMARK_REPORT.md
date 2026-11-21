@@ -1,11 +1,12 @@
-# MicroVectorDB v0.5.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
+# MicroVectorDB v0.6.0 — Bilimsel Benchmark Raporu (`BENCHMARK_REPORT.md`)
 
 **Ölçüm Tarihi:** 2026-11-21  
 **Ham Sonuç Dosyaları:**  
 - Faz 1 (`v0.3.0`): [`benchmarks/results/benchmark_v0.3.0.json`](benchmarks/results/benchmark_v0.3.0.json) · [`benchmarks/results/benchmark_v0.3.0.csv`](benchmarks/results/benchmark_v0.3.0.csv)  
 - Faz 2 (`v0.4.0`): [`benchmarks/results/benchmark_v0.4.0.json`](benchmarks/results/benchmark_v0.4.0.json) · [`benchmarks/results/benchmark_v0.4.0.csv`](benchmarks/results/benchmark_v0.4.0.csv)  
 - Faz 3 (`v0.5.0`): [`benchmarks/results/benchmark_v0.5.0.json`](benchmarks/results/benchmark_v0.5.0.json) · [`benchmarks/results/benchmark_v0.5.0.csv`](benchmarks/results/benchmark_v0.5.0.csv)  
-**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py`, `python benchmarks/run_benchmarks_v04.py` ve `python benchmarks/run_benchmarks_v05.py`
+- Faz 4 (`v0.6.0`): [`benchmarks/results/benchmark_v0.6.0.json`](benchmarks/results/benchmark_v0.6.0.json) · [`benchmarks/results/benchmark_v0.6.0.csv`](benchmarks/results/benchmark_v0.6.0.csv)  
+**Tekrar Çalıştırma Komutları:** `python benchmarks/run_benchmarks.py`, `run_benchmarks_v04.py`, `run_benchmarks_v05.py` ve `run_benchmarks_v06.py`
 
 ---
 
@@ -191,3 +192,34 @@ v0.3.0'da tek bir kayıt silindiğinde tüm `.mvdbvec` dosyası ve SQLite tablos
 | **3-Yollu Hibrit (Dense + BM25 + Sparse, RRF)** | 1.247 | 1.843 | 751.9 | 0.780 | 3 farklı retrieval sinyalini tek çağrıda birleştirir |
 
 *(10.000 dokümanın Dense HNSW + BM25 + Sparse birlikte toplam ekleme süresi: **0.712 saniye**.)*
+
+---
+
+## 8. Faz 4 (`v0.6.0`): Çok Çekirdekli Eşzamanlılık, Python GIL / OpenBLAS Analizi, Async ve Bloklamayan Arka Plan Bakım
+
+### 8.1. Paralel `batch_search()` & `batch_hybrid_search()` Ölçeklenmesi (256 Sorgu, 1 / 2 / 4 / 8 İşçi)
+
+| İş Yükü | `workers=1` QPS | `workers=2` QPS | `workers=4` QPS | `workers=8` QPS | En İyi Ölçeklenme & GIL/BLAS Analizi |
+|---|---:|---:|---:|---:|---|
+| **HNSW (`100K × 128D`, `M=16, efS=64`)** | 7,658.7 *(33.43 ms)* | 13,547.1 *(1.77x)* | 16,409.8 *(2.14x)* | **18,764.8** *(13.64 ms)* | **2.45x hızlanma (~18.8K QPS!)** — Saf C++ GIL-serbest graf taraması |
+| **IVF (`100K × 128D`, `C=128, np=8`)** | 2,651.7 *(96.54 ms)* | **2,980.5** *(1.12x)* | 2,316.5 *(0.87x)* | 2,210.5 *(0.83x)* | OpenBLAS dahili iş parçacıkları >2 işçide çekişme oluşturur |
+| **IVF-PQ (`100K × 128D`, `M=16`)** | **2,619.9** *(97.71 ms)* | 2,141.1 *(0.82x)* | 1,638.5 *(0.63x)* | 1,523.4 *(0.58x)* | Kısa Python/NumPy döngüleri GIL çekişmesine takılır |
+| **DiskIndex (`100K × 128D`, MMap)** | **1,771.2** *(144.53 ms)* | 1,290.2 *(0.73x)* | 1,098.2 *(0.62x)* | 1,075.4 *(0.61x)* | Küçük mmap blok okuma + OpenBLAS çekişmesi |
+| **Hibrit (`10K`, `HNSW+BM25+RRF`)** | 2,271.0 *(112.73 ms)* | **2,401.2** *(1.06x)* | 2,012.2 *(0.89x)* | 1,570.5 *(0.69x)* | Bellek içi kısa Python füzyonu (harici I/O reranker varsa çoklu işçi hızlanır) |
+
+> **Veri-Odaklı Mimari Karar:** Bu gerçek ölçümlere dayanarak `batch_search(..., max_workers=None)` otomatik olarak **HNSW** için çok çekirdekli iş parçacığı havuzunu (**18,765 QPS**), **Flat / IVF / IVF-PQ / DiskIndex** için sıfır GIL çekişmeli tek-işçi yolunu (**1,771–2,652 QPS**) ve `batch_hybrid_search` için harici `reranker` varsa paralel havuzu seçer. Uzman kullanıcılar `max_workers` ile bu seçimi dilediğinde geçersiz kılabilir.
+
+### 8.2. `AsyncMicroVectorDB` + `asyncio.gather()` Eşzamanlılığı (100K × 128D HNSW)
+
+| Senaryo | Toplam Duvar Süresi | Toplam QPS | İstek P50 (ms) | İstek P95 (ms) |
+|---|---:|---:|---:|---:|
+| `asyncio.gather(64)` | 56.43 ms | **1,134.2** | 14.386 | 34.913 |
+| `asyncio.gather(256)` | 77.89 ms | **3,286.8** | 43.780 | 71.154 |
+
+### 8.3. Bloklamayan Arka Plan `rebuild_index_async()` & `auto_compact_async=True`
+
+| Senaryo | Ölçüm | Kazanım |
+|---|---|---|
+| **50K × 128D IVF `rebuild_index_async()` (`1,047.6 ms` inşa)** | İnşa sırasında **2,212 canlı okuma** tamamlandı: Okuyucu **P50 = 0.363 ms**, **P95 = 1.118 ms**, **Max = 3.99 ms** | Senkron `1,048 ms` tam duraklamaya göre **262x düşük azami gecikme (sıfır kesinti!)** |
+| **10K Yoğun Silme (25×100): `auto_compact_async=False`** | P50 = `0.440 ms`, %25 eşiğini tetikleyen silme = **`49.886 ms`** | Senkron compaction çağıranı 50 ms bloke eder |
+| **10K Yoğun Silme (25×100): `auto_compact_async=True`** | P50 = `0.486 ms`, %25 eşiğini tetikleyen silme = **`0.821 ms`**, Max = `1.993 ms`, Son Tombstone = `0` | **60.8x düşük kuyruk gecikmesi!** |

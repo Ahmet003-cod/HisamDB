@@ -12,7 +12,16 @@ from microvectordb.client import (
     PersistentClient,
 )
 from microvectordb.collection import Collection
-from microvectordb.concurrency import RWLock
+from microvectordb.concurrency import (
+    BackgroundTaskManager,
+    BatchQueryExecutor,
+    RWLock,
+)
+from microvectordb.concurrency.async_client import (
+    AsyncCollection,
+    AsyncMicroVectorDB,
+    AsyncTenantCollection,
+)
 from microvectordb.filtering import MetadataIndex
 from microvectordb.indexes import (
     DiskIndex,
@@ -62,14 +71,19 @@ from microvectordb.types import (
     VectorDBError,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "MicroVectorDB",
+    "AsyncMicroVectorDB",
     "PersistentClient",
     "EphemeralClient",
     "BaseClient",
     "Collection",
+    "AsyncCollection",
     "TenantCollection",
+    "AsyncTenantCollection",
+    "BatchQueryExecutor",
+    "BackgroundTaskManager",
     "IVFIndex",
     "IVFPQIndex",
     "HNSWIndex",
