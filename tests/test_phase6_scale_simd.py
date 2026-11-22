@@ -206,7 +206,7 @@ class TestHighDimensionalLLMCollections(unittest.TestCase):
         db2.close()
 
     def test_version_and_public_exports(self):
-        self.assertEqual(hisamdb.__version__, "1.0.0")
+        self.assertEqual(hisamdb.__version__, "1.1.0")
         self.assertIs(hisamdb.HisamDB, hisamdb.MicroVectorDB)
         self.assertIs(hisamdb.AsyncHisamDB, hisamdb.AsyncMicroVectorDB)
         self.assertIs(hisamdb.RemoteHisamDB, hisamdb.RemoteMicroVectorDB)

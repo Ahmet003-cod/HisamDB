@@ -1,11 +1,12 @@
 # HisamDB ⚔️
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/CHANGELOG.md)
+[![CI](https://github.com/Ahmet003-cod/HisamDB/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmet003-cod/HisamDB/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/hisamdb.svg)](https://pypi.org/project/hisamdb/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
 [![Core Dependencies: NumPy](https://img.shields.io/badge/core%20dependencies-NumPy%20only-blueviolet.svg)](https://github.com/Ahmet003-cod/HisamDB/blob/main/requirements.txt)
-[![Tests: 90/90 Passing](https://img.shields.io/badge/tests-90%2F90%20passing-success.svg)](https://github.com/Ahmet003-cod/HisamDB/tree/main/tests)
+[![Tests: 95/95 Passing](https://img.shields.io/badge/tests-95%2F95%20passing-success.svg)](https://github.com/Ahmet003-cod/HisamDB/tree/main/tests)
 
 **HisamDB** *(**H**ybrid **I**ndexed **S**IMD **A**NN **M**emory **DB** — "Hisâm": keskin kılıç / cutting-edge)*, yapay zekâ uygulamaları (RAG, anlamsal arama, sohbet botları, öneri sistemleri) için geliştirilmiş; **yüksek performanslı**, **ultra düşük bellek (RAM) tüketimli**, **hibrit arama (Vektör + Metin)** destekli, **çökme korumalı (WAL)** ve çekirdeğinde **yalnızca `numpy`** gerektiren açık kaynaklı bir Python Vektör Veritabanıdır.
 
@@ -157,11 +158,15 @@ pip install "hisamdb[fast]"
 # 4. Opsiyonel üretim FastAPI REST sunucusu (FastAPI + Uvicorn + Pydantic):
 pip install "hisamdb[server]"
 
-# 5. Tüm performans ve sunucu eklentileri (hnswlib + orjson + server):
+# 5. Opsiyonel resmi LangChain / LlamaIndex entegrasyonları:
+pip install "hisamdb[langchain]"
+pip install "hisamdb[llamaindex]"
+
+# 6. Tüm performans ve sunucu eklentileri (hnswlib + orjson + server):
 pip install "hisamdb[all]"
 
-# 6. Kaynak koddan geliştirme ve benchmark araçlarıyla kurulum:
-pip install -e ".[all,dev,bench]"
+# 7. Kaynak koddan geliştirme ve benchmark araçlarıyla kurulum:
+pip install -e ".[all,langchain,dev,bench]"
 ```
 
 ### Opsiyonel: Rust Native SIMD (`AVX2 + FMA3 + POPCNT`) Hızlandırması (İsteğe Bağlı)
@@ -310,7 +315,38 @@ with RemoteHisamDB("http://127.0.0.1:8000", api_key="hisam_admin_key") as db:
     print(hits[0].id, round(hits[0].score, 4))
 ```
 
-### 5. ChromaDB Stili Klasik API
+### 5. 🦜 LangChain & 🦙 LlamaIndex Resmi Entegrasyonları *(Optimize Edilmiş — `v1.1.0`)*
+
+Diğer LangChain/LlamaIndex vektör adaptörlerinden farkımız:
+- **Varsayılan Yerleşik Hibrit Arama (`search_mode="hybrid"`):** Harici BM25/Elasticsearch olmadan Dense + Türkçe Okapi BM25 + RRF (`%100` Hit@10).
+- **11.3x – 29.9x Daha Hızlı Vektörize BLAS MMR + Sıfır Yeniden-Gömme:** `1536D` OpenAI vektörlerinde `39.65 ms → 2.78 ms` (`14.3x`), `768D` `fetch_k=200`'de `7.51 ms → 0.25 ms` (**29.9x hızlı**), uçtan uca MMR **`0.997 ms`**!
+- **API Maliyeti Koruyan Tekilleştirme (`deduplicate_on_add=True`):** Özdeş metinler embedding API'sine tekrar gönderilmez (**%100 API maliyeti tasarrufu**).
+- **Tek Parametrede Parent-Child Bağlam (`context_window=1`)**, **15.5 MB RAM `DiskIndex`**, **Multi-Tenant (`tenant_id`)**, **8,898 QPS `batch_similarity_search`** ve **Gömülü ↔ Uzak REST Sunucu** uyumu.
+
+```python
+from hisamdb import HisamDBVectorStore, HisamDBLlamaIndexStore
+
+# LangChain: Tek satırda Hibrit + Dedup + Parent-Child + BLAS MMR + LCEL Retriever
+with HisamDBVectorStore(
+    embedding=embeddings,
+    collection_name="docs",
+    path="./rag_db",
+    index_type="disk",          # 1M vektörde ~15.5 MB RAM!
+    search_mode="hybrid",       # Dense + Türkçe BM25 + RRF
+    deduplicate_on_add=True,    # Aynı metinleri tekrar embed etmez
+    context_window=1,           # Komşu parçaları otomatik birleştirir
+) as vs:
+    vs.add_texts(["ERR-9042 WAL kurtarma rehberi."], metadatas=[{"year": 2026}])
+    retriever = vs.as_retriever(search_kwargs={"k": 4})
+    diverse = vs.max_marginal_relevance_search("WAL kurtarma", k=4, fetch_k=20)
+
+# LlamaIndex: HYBRID, TEXT_SEARCH, MMR ve tam MetadataFilters -> O(1) Ters İndeks
+llama_store = HisamDBLlamaIndexStore(collection_name="llama_kb", path="./llama_db", index_type="disk")
+```
+
+Tam rehber ve kıyaslama tablosu: [`docs/INTEGRATIONS.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/INTEGRATIONS.md) · Örnek: [`examples/08_langchain_and_llamaindex.py`](https://github.com/Ahmet003-cod/HisamDB/blob/main/examples/08_langchain_and_llamaindex.py)
+
+### 6. ChromaDB Stili Klasik API
 
 ```python
 import hisamdb
@@ -341,6 +377,7 @@ HisamDB/
 │   ├── search/                 # Vektörize Okapi BM25, SparseVectorIndex, RRF/Weighted Füzyon, RAG & Multi-Tenant
 │   ├── concurrency/            # RWLock, BatchQueryExecutor, BackgroundTaskManager, AsyncHisamDB
 │   ├── api/                    # FastAPI REST sunucusu, SHA-256 Auth/Tenant, Rate Limiter, Prometheus /metrics, HTTP SDK
+│   ├── integrations/           # Resmi LangChain (HisamDBVectorStore) & LlamaIndex (HisamDBLlamaIndexStore) + BLAS MMR
 │   ├── distance.py             # Klasik mesafe uyumluluk cephesi -> metrics/
 │   └── ivf_index.py            # Klasik IVF uyumluluk cephesi -> indexes/ivf.py
 ├── kernels_experimental/
@@ -370,6 +407,7 @@ HisamDB/
 
 ## 🗺️ Dokümantasyon
 
+- [`docs/INTEGRATIONS.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/INTEGRATIONS.md) — Resmi LangChain & LlamaIndex adaptörleri, 11x–30x BLAS MMR kıyaslaması ve üretim örnekleri
 - [`BENCHMARK_REPORT.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/BENCHMARK_REPORT.md) — Tüm fazların tam ölçüm tabloları (`10K → 1M`, `128D–1536D`, SIMD, Hibrit RAG, Async, HTTP REST)
 - [`docs/ARCHITECTURE_SCALE_RESEARCH.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/ARCHITECTURE_SCALE_RESEARCH.md) — Native Rust SIMD analizi, GPU/CUDA fizibilitesi ve `v2.x` dağıtık sharding/Raft/gRPC taslağı
 - [`docs/API_SERVER.md`](https://github.com/Ahmet003-cod/HisamDB/blob/main/docs/API_SERVER.md) — FastAPI REST sunucusu, SHA-256 Auth/Tenant güvenliği, Prometheus `/metrics`, Python SDK ve Docker

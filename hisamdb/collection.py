@@ -2231,6 +2231,40 @@ class Collection:
                 "metadatas": [self._metadatas[i] for i in matched_indices],
             }
 
+    def get_vectors(self, ids: List[str]) -> Tuple[List[str], np.ndarray]:
+        """
+        Verilen ID listesindeki kayıtların (bulunan_idler, float32 vektör matrisi) çiftini
+        tek bir okuma kilidi altında sıfır yeniden-gömme maliyetiyle döndürür.
+        (LangChain / LlamaIndex vektörize MMR ve yeniden sıralama için optimize edilmiştir.)
+        """
+        with self._lock.read_lock():
+            found_ids: List[str] = []
+            slots: List[int] = []
+            for s_id in ids:
+                idx = self._id_to_idx.get(s_id)
+                if idx is not None and not self._deleted_mask[idx]:
+                    found_ids.append(s_id)
+                    slots.append(idx)
+
+            dim = self.dimension or 0
+            if not slots:
+                return found_ids, np.empty((0, dim), dtype=np.float32)
+
+            slot_arr = np.asarray(slots, dtype=np.int64)
+            total_slots = len(self._ids)
+            if self._vbuf.size == total_slots:
+                vecs = np.ascontiguousarray(self._vbuf.view[slot_arr], dtype=np.float32)
+            elif self._quantized_int8 is not None and self._sq_quantizer is not None:
+                vecs = np.ascontiguousarray(self._sq_quantizer.decode(self._quantized_int8[slot_arr]), dtype=np.float32)
+            elif self._quantized_pq_t is not None and self._pq_quantizer is not None:
+                vecs = np.ascontiguousarray(
+                    self._pq_quantizer.decode(np.ascontiguousarray(self._quantized_pq_t[:, slot_arr].T)),
+                    dtype=np.float32,
+                )
+            else:
+                vecs = np.empty((0, dim), dtype=np.float32)
+            return found_ids, vecs
+
     def _compact_locked(self, rebuild_ann: bool = True) -> None:
         """
         Tombstone (silinmiş) slotları fiziksel olarak temizler, `.mvdbvec` ve SQLite'ı

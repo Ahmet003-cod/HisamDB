@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hisamdb"
-version = "1.0.0"
-description = "HisamDB — Cutting-edge, ultra-low-memory, hybrid-search & RAG vector database for Python (NumPy-only core)"
+version = "1.1.0"
+description = "HisamDB — Cutting-edge, ultra-low-memory, hybrid-search & RAG vector database for Python (NumPy-only core + LangChain & LlamaIndex)"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -65,6 +65,8 @@ hisamdb-server = "hisamdb.api.server:main"
 hnsw = ["hnswlib>=0.7.0"]
 fast = ["orjson>=3.9.0"]
 server = ["fastapi>=0.110.0", "uvicorn>=0.27.0", "pydantic>=2.0.0"]
+langchain = ["langchain-core>=0.2.0"]
+llamaindex = ["llama-index-core>=0.10.0"]
 all = ["hnswlib>=0.7.0", "orjson>=3.9.0", "fastapi>=0.110.0", "uvicorn>=0.27.0", "pydantic>=2.0.0"]
 bench = ["psutil>=5.9.0", "faiss-cpu>=1.7.4"]
 dev = [

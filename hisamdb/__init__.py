@@ -40,6 +40,12 @@ from hisamdb.indexes import (
     QueryOptimizer,
     is_hnsw_available,
 )
+from hisamdb.integrations import (
+    HisamDBLlamaIndexStore,
+    HisamDBVectorStore,
+    is_langchain_available,
+    is_llamaindex_available,
+)
 from hisamdb.metrics import (
     is_native_simd_available,
     native_simd_path,
@@ -84,11 +90,15 @@ from hisamdb.types import (
     VectorDBError,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "HisamDB",
     "AsyncHisamDB",
     "RemoteHisamDB",
+    "HisamDBVectorStore",
+    "HisamDBLlamaIndexStore",
+    "is_langchain_available",
+    "is_llamaindex_available",
     "MicroVectorDB",
     "AsyncMicroVectorDB",
     "RemoteMicroVectorDB",

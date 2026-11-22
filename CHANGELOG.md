@@ -2,6 +2,25 @@
 
 Bu dosya HisamDB projesindeki tüm önemli değişiklikleri belgeler.
 
+## [1.1.0] - 2026-11-22 (Resmi Optimize LangChain & LlamaIndex Entegrasyonları + CI İyileştirmesi)
+
+### Eklenenler
+- **Resmi LangChain Entegrasyonu (`hisamdb.integrations.langchain.HisamDBVectorStore`, `pip install "hisamdb[langchain]"`):**
+  - Resmi `langchain_core.vectorstores.VectorStore` alt sınıfı (`as_retriever()`, LCEL `.invoke()`, `get_by_ids`, tam `asyncio` desteği; `langchain-core` yokken hafif uyumlu mod).
+  - **Varsayılan Yerleşik Hibrit Arama (`search_mode="hybrid"`):** Dense + Türkçe/Unicode Okapi BM25 + RRF tek satırda.
+  - **API Maliyeti Koruyan Tekilleştirme (`deduplicate_on_add=True`):** Veritabanında zaten bulunan metinler `embed_documents()` çağrılmadan elenir.
+  - **Sıfır Yeniden-Gömme Vektörize BLAS MMR (`vectorized_mmr` + `Collection.get_vectors()`):** Standart Python-döngülü MMR'ye göre `768D` (`fetch_k=200`) **29.85x**, `1536D` (`fetch_k=500`) **14.50x** daha hızlı; uçtan uca MMR **`0.997 ms`**.
+  - **Parent-Child Bağlam Penceresi (`context_window=1` / `similarity_search_with_context`)**, çok çekirdekli `batch_similarity_search()` (**8,898 QPS** @ 10K HNSW), katı `tenant_id` yalıtımı, harici `reranker` ve yerel/uzak `RemoteHisamDB` desteği.
+- **Resmi LlamaIndex Entegrasyonu (`hisamdb.integrations.llamaindex.HisamDBLlamaIndexStore`, `pip install "hisamdb[llamaindex]"`):**
+  - `BasePydanticVectorStore` / `VectorStore` uyumlu tam API (`add`, `async_add`, `query`, `aquery`, `delete`, `delete_nodes`, `get_nodes`, `persist`, `from_persist_dir`).
+  - `VectorStoreQueryMode.DEFAULT`, `HYBRID`, `TEXT_SEARCH`/`SPARSE` ve `MMR` (Vektörize BLAS MMR) modları.
+  - Tam özyinelemeli `MetadataFilters` (`==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `nin`, `any`, `all`, `contains`, `text_match`, `is_empty`, `AND`/`OR`/`NOT`) → HisamDB O(1) ters `MetadataIndex` AST çeviricisi (`translate_llamaindex_filters`).
+- **Çekirdek:** `Collection.get_vectors(ids)` (tek okuma kilidinde sıfır yeniden-gömme `float32` matris erişimi — ham, `MMap`, `INT8` ve `PQ` destekli).
+- **Dokümantasyon, Örnek, Benchmark & Testler:** [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md), `examples/08_langchain_and_llamaindex.py`, `benchmarks/run_benchmarks_integrations.py` ve 5 yeni kapsamlı entegrasyon testi (toplam **95/95 test**).
+
+### Düzeltilenler
+- **GitHub Actions CI (`.github/workflows/ci.yml`):** Ubuntu 24.04 (`ubuntu-latest`) üzerinde EOL Python 3.9 kurulum hatasını gidermek için matris aktif Python sürümlerine (`3.10`, `3.11`, `3.12`, `3.13` × Linux & Windows) güncellendi ve `langchain` ekstrası CI testlerine dahil edildi.
+
 ## [1.0.0] - 2026-11-21 (Faz 6 — 1M Ölçek & 1536D LLM Benchmarkları, Opsiyonel Rust Native SIMD, Görsel Grafikler ve Herkes İçin Anlaşılır Dokümantasyon)
 
 ### Eklenenler
